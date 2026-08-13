@@ -17,14 +17,19 @@ around them.
 > Cloudflare Durable Object (SQLite event log + hibernating WebSockets) with offset-based
 > late-joiner replay, and a per-session E2B microVM adapter behind the swappable sandbox interface.
 >
-> **Landed from the safety layer (Phase 2):** an append-only, hash-chained event log with a
-> server-side verification endpoint; per-role secret **redaction** before every broadcast
-> (Observers never see raw secrets); and **Driver-only approval gates** on side-effecting tools —
-> the agent blocks until the Driver approves.
+> **Landed — the safety and durability layer (Phase 2):** an append-only, hash-chained event log
+> with a server-side verification endpoint; per-role secret **redaction** before every broadcast
+> _and_ every replay (Observers never see raw secrets); session-scoped credentials injected only
+> at sandbox boot and declared to the redaction pass; **Driver-only approval gates** on
+> side-effecting tools, with idempotency keys that warn before a step runs twice and report any
+> step an agent restart left unaccounted for; checkpoint compaction so late joiners load a bounded
+> tail instead of the whole log; reconnects that resume from a cursor; and a **red-team
+> prompt-injection suite** that runs in CI on every pull request.
 >
-> **Not yet:** authentication (v0 identity is unauthenticated query params — do not expose beyond
-> dev), session-scoped credential injection, checkpoint compaction, side-effect compensation, and
-> the red-team prompt-injection suite. Not production-ready.
+> **Not yet: authentication.** v0 identity is unauthenticated query params — do not expose a
+> deployment beyond dev. The Phase 2 exit benchmark passes locally (see
+> [`docs/benchmarks/phase-2.md`](docs/benchmarks/phase-2.md)); its 24-hour soak against a real
+> deployment has not been run. Not production-ready.
 
 ## Why
 
@@ -42,11 +47,14 @@ around them.
 
 ## Documentation
 
-| Doc                                | What it is                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------- |
-| [`docs/PLAN.md`](docs/PLAN.md)     | The project plan — phases, architecture decisions, benchmarks. The source of truth. |
-| [`docs/research/`](docs/research/) | The research foundation the plan is built on.                                       |
-| [`CLAUDE.md`](CLAUDE.md)           | The working agreement all contributors (human and agent) follow.                    |
+| Doc                                    | What it is                                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`docs/PLAN.md`](docs/PLAN.md)         | The project plan — phases, architecture decisions, benchmarks. The source of truth. |
+| [`docs/protocol.md`](docs/protocol.md) | The wire spec: event log, steering semantics, approvals, replay, transport.         |
+| [`docs/adr/`](docs/adr/)               | Architecture decision records — what we chose, and what it cost.                    |
+| [`docs/benchmarks/`](docs/benchmarks/) | Runbooks for the phase exit benchmarks.                                             |
+| [`docs/research/`](docs/research/)     | The research foundation the plan is built on.                                       |
+| [`CLAUDE.md`](CLAUDE.md)               | The working agreement all contributors (human and agent) follow.                    |
 
 ## License
 
