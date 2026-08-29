@@ -123,6 +123,15 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
     setNotice(null);
     clientRef.current?.decide(requestId, outcome);
   }, []);
+  const exportTranscript = useCallback(() => {
+    setNotice(null);
+    clientRef.current
+      ?.transcript()
+      .then((markdown) => download(`side-street-${details.sessionId}.md`, markdown))
+      .catch((error: unknown) => {
+        setNotice(error instanceof Error ? error.message : String(error));
+      });
+  }, [details.sessionId]);
 
   return (
     <SessionView
@@ -134,7 +143,19 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
       onSteer={steer}
       onHandoff={handoff}
       onDecide={decide}
+      onExport={exportTranscript}
       onLeave={onLeave}
     />
   );
+}
+
+/** Hands the viewer a file. The transcript is built client-side, so there is
+ * nothing to fetch it from but an object URL. */
+function download(filename: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

@@ -18,6 +18,7 @@ export function SessionView({
   onSteer,
   onHandoff,
   onDecide,
+  onExport,
   onLeave,
 }: {
   events: SignedEvent[];
@@ -29,6 +30,7 @@ export function SessionView({
   onSteer(text: string, delivery: "queue" | "interrupt"): void;
   onHandoff(toParticipantId: string): void;
   onDecide(requestId: string, outcome: PermissionOutcome): void;
+  onExport(): void;
   onLeave(): void;
 }): ReactElement {
   const { timeline, roster, driverId, pendingPermissions } = useMemo(
@@ -68,6 +70,9 @@ export function SessionView({
               onHandoff={canHandWheelTo(self, isDriver, p) ? onHandoff : undefined}
             />
           ))}
+          <button className="ghost" onClick={onExport} title="Download the attributed timeline">
+            Export
+          </button>
           <button className="ghost" onClick={onLeave}>
             Leave
           </button>

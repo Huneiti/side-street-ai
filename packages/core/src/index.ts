@@ -28,6 +28,7 @@ export {
   type VerifyResult,
 } from "./hash-chain.js";
 export { ROLES, canApproveTools, canSteer, canSuggest, roleSchema, type Role } from "./roles.js";
+export { toMarkdown, type TranscriptOptions } from "./transcript.js";
 export {
   SteeringController,
   type HandoffResult,

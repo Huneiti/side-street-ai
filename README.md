@@ -44,6 +44,7 @@ around them.
 - **Tamper-evident attribution** — every steering action, approval, and interrupt is signed into a hash-chained log. Who steered what is legible and can't be quietly rewritten.
 - **A security envelope** — per-role secret redaction before anything reaches a viewer, session-scoped short-lived credentials, sandboxed execution, and human approval gates on side-effecting tools.
 - **Agent-agnostic by design** — the backing agent and the sandbox are swappable interfaces, never vendor lock-in.
+- **A postmortem trail you can export** — the session as an attributed Markdown timeline, carrying the chain tip so the write-up can be checked against the log rather than trusted.
 
 ## Documentation
 

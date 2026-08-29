@@ -208,7 +208,7 @@ _Goal: an on-call team resolves a real incident faster with shared steering than
 screen-share + copy-paste._
 
 - [ ] One incident-response integration (pick **Sentry first** — better OSS developer motion than PagerDuty): alert → spin up a shared session preloaded with the error context, repo, and recent deploys
-- [ ] Session artifacts: exportable attributed timeline (the postmortem trail) as Markdown
+- [x] Session artifacts: exportable attributed timeline (the postmortem trail) as Markdown — `toMarkdown` in `@side-street/core` renders the log as a dated, attributed transcript: who steered and who only suggested (by the wheel at that moment, not the join-time role), which tool ran with what output, who approved each gated step and under which idempotency key, and every step the session could not account for. The header carries the chain tip so a reader can check the artifact against `/verify` instead of trusting it, and a compacted export says where its history starts rather than beginning mid-incident silently. Exported from the web viewer, which re-fetches the whole log via `GET /events?from=0` — that endpoint redacts at the Observer floor whoever asks, so the artifact is safe to paste into a document read by people who were never in the session. Participant and agent text is quoted, so nothing typed into a session can restructure the postmortem around it
 - [ ] Second backing agent over ACP (Codex via `codex-acp` or Gemini CLI) — prove agent-agnosticism publicly
 - [ ] Usage metering scaffolding (session-hours / steered-sessions) — even if free, measure from day one
 - [ ] Ops: structured logging, error tracking, cost dashboards for DO + sandbox spend

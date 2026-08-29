@@ -16,6 +16,7 @@
 
 import {
   serverFrameSchema,
+  toMarkdown,
   type PermissionOutcome,
   type Role,
   type ServerFrame,
@@ -142,6 +143,27 @@ export class SessionClient {
   /** Answer a pending permission request (the server enforces Driver-only). */
   decide(requestId: string, outcome: PermissionOutcome): void {
     this.send({ type: "decide", requestId, outcome });
+  }
+
+  /**
+   * The session as an attributed Markdown transcript — the postmortem trail.
+   *
+   * Re-fetched from seq 0 rather than rendered from what this client happens
+   * to hold: a late joiner's stream starts at a checkpoint, and an incident
+   * write-up that silently begins in the middle is the wrong artifact. The
+   * endpoint redacts at the Observer floor whoever asks, so what comes back is
+   * safe to paste into a document read by people who were never in the session.
+   */
+  async transcript(): Promise<string> {
+    const fetchFn = this.options.fetchFn ?? ((url: string) => fetch(url));
+    const response = await fetchFn(
+      `${this.options.baseUrl}/session/${this.options.sessionId}/events?from=0`,
+    );
+    if (!response.ok) {
+      throw new Error("transcript request failed");
+    }
+    const parsed = replaySchema.parse(await response.json());
+    return toMarkdown(parsed.events as SignedEvent[]);
   }
 
   private send(frame: unknown): void {

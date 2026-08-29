@@ -162,6 +162,18 @@ describe("SessionClient", () => {
     expect(h.rejections).toEqual([]);
   });
 
+  it("builds the transcript from the whole log, not from what it happens to hold", async () => {
+    const h = harness();
+    const log = await makeLog(2);
+    // This client is caught up to the tail only; the export must still start
+    // at seq 0, because a postmortem that begins mid-incident is the wrong
+    // artifact.
+    const pending = h.client.transcript();
+    expect(h.fetches).toEqual(["http://worker.test/session/s1/events?from=0"]);
+    h.resolveReplay(log);
+    expect(await pending).toContain("**Events:** 2 (seq 0–1)");
+  });
+
   it("sends a decide frame for a permission decision", () => {
     const h = harness();
     h.client.decide("perm-1", { kind: "selected", optionId: "allow" });

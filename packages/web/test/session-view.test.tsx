@@ -56,6 +56,7 @@ function render(events: SignedEvent[], self: string, selfRole: Role): string {
       onSteer={() => {}}
       onHandoff={() => {}}
       onDecide={() => {}}
+      onExport={() => {}}
       onLeave={() => {}}
     />,
   );
