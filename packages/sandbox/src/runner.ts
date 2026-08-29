@@ -12,8 +12,18 @@ import { AgentBridge, type SessionSocket } from "./bridge.js";
 import { secretsFromEnv } from "./credentials.js";
 import { spawnAgent } from "./stdio.js";
 
-/** `http(s)://host/session/:id` → `ws(s)://host/session/:id/agent`. */
-export function agentSocketUrl(sessionUrl: string): string {
+/** What the runner tells the session it is. Declared, never verified. */
+export interface AgentIdentity {
+  agent: string;
+  version?: string | undefined;
+}
+
+/**
+ * `http(s)://host/session/:id` → `ws(s)://host/session/:id/agent`, carrying
+ * what this bridge is. The session records the declaration so a transcript
+ * names the agent that actually ran rather than the one the session expected.
+ */
+export function agentSocketUrl(sessionUrl: string, identity?: AgentIdentity): string {
   const url = new URL(sessionUrl);
   if (url.protocol === "http:") {
     url.protocol = "ws:";
@@ -21,6 +31,12 @@ export function agentSocketUrl(sessionUrl: string): string {
     url.protocol = "wss:";
   }
   url.pathname = `${url.pathname.replace(/\/$/, "")}/agent`;
+  if (identity !== undefined) {
+    url.searchParams.set("agent", identity.agent);
+    if (identity.version !== undefined) {
+      url.searchParams.set("agentVersion", identity.version);
+    }
+  }
   return url.toString();
 }
 
@@ -182,7 +198,12 @@ export async function main(argv: readonly string[]): Promise<void> {
   const acpSessionId = await openSession(client, workspace, handshake.authMethods, parsed.agent);
   console.error(`agent ready: ${parsed.agent} (acp session ${acpSessionId})`);
 
-  const wsUrl = agentSocketUrl(sessionUrl);
+  // The agent's own `agentInfo` when it reports one; otherwise the name the
+  // operator asked for, which is at least what they believe they ran.
+  const wsUrl = agentSocketUrl(sessionUrl, {
+    agent: handshake.agentInfo?.name ?? parsed.agent,
+    version: handshake.agentInfo?.version,
+  });
   const ws = new WebSocket(wsUrl);
   await new Promise<void>((resolve, reject) => {
     ws.addEventListener("open", () => resolve(), { once: true });

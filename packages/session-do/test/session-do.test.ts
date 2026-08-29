@@ -85,6 +85,35 @@ describe("session lifecycle over WebSocket", () => {
     expect(alice.frames.filter((f) => f["type"] === "handoff_rejected")).toHaveLength(0);
   });
 
+  it("logs what an attaching bridge declares itself to be", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor((f) => f["type"] === "welcome");
+
+    await connect(`/session/${sessionId}/agent?agent=gemini&agentVersion=0.57.0`);
+    const attached = (await alice.waitFor(isEventOf("agent_attached")))["event"] as SignedEvent;
+    expect(attached.body).toEqual({
+      type: "agent_attached",
+      payload: { agent: "gemini", version: "0.57.0" },
+    });
+    // Attributed to the agent socket, because that is who said it.
+    expect(attached.authorId).toBe("agent");
+  });
+
+  it("lets a bridge attach without declaring anything", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor((f) => f["type"] === "welcome");
+    const agent = await connect(`/session/${sessionId}/agent`);
+
+    // Flush: the steer round-trips through the same DO, so anything the attach
+    // would have logged has already been broadcast by the time this arrives.
+    alice.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "alice" }));
+    alice.ws.send(JSON.stringify({ type: "steer", id: "m1", text: "go", delivery: "queue" }));
+    await agent.waitFor((f) => f["type"] === "prompt");
+    expect(alice.frames.filter(isEventOf("agent_attached"))).toHaveLength(0);
+  });
+
   it("answers malformed frames with an error frame", async () => {
     const sessionId = freshSession();
     const alice = await connect(viewerPath(sessionId, "alice", "driver"));

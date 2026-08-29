@@ -100,6 +100,27 @@ export const eventBodySchema = z.discriminatedUnion("type", [
       sandboxProvider: z.string().min(1),
     }),
   }),
+  /**
+   * A bridge connected on the agent socket and said what it is. Separate from
+   * `session_started` because the session usually begins before any agent
+   * exists — a viewer opens it — so the agent is not knowable at that point,
+   * and because a session whose agent died and was replaced has two of these
+   * rather than one overwritten field.
+   *
+   * This is a **self-declaration**, authored by the least trustworthy speaker
+   * in the session. Attribution is still truthful — the log records that the
+   * thing on the agent socket claimed this — but nothing verifies the claim,
+   * so anything reading it should present it as declared, not established.
+   */
+  z.object({
+    type: z.literal("agent_attached"),
+    payload: z.object({
+      /** What the bridge calls the agent, e.g. "gemini". */
+      agent: z.string().min(1).max(128),
+      /** From the ACP handshake's `agentInfo`, when the agent reports one. */
+      version: z.string().min(1).max(64).optional(),
+    }),
+  }),
   z.object({ type: z.literal("participant_joined"), payload: rosterEntrySchema }),
   z.object({
     type: z.literal("participant_left"),

@@ -49,6 +49,8 @@ export function toMarkdown(
   /** Index in `entries` of each tool call, so its updates rewrite it in place. */
   const toolEntries = new Map<string, { index: number; title: string }>();
   let started: { sessionId: string; agent: string; sandboxProvider: string } | undefined;
+  /** What actually attached, if anything did — see `agent_attached`. */
+  let attached: { agent: string; version?: string | undefined } | undefined;
   let driverId: string | null = null;
   /** Index into `entries` of the open agent paragraph, so chunks merge. */
   let openAgentText: number | undefined;
@@ -70,6 +72,14 @@ export function toMarkdown(
           )}`,
         );
         break;
+      case "agent_attached": {
+        attached = body.payload;
+        const version = body.payload.version === undefined ? "" : ` ${body.payload.version}`;
+        entries.push(
+          `${at} **system** · agent attached: ${code(`${body.payload.agent}${version}`)} (self-declared)`,
+        );
+        break;
+      }
       case "participant_joined":
         roster.set(body.payload.participantId, {
           displayName: body.payload.displayName,
@@ -211,12 +221,19 @@ export function toMarkdown(
     }
   }
 
-  return [header(events, started, roster), "## Timeline", "", entries.join("\n\n"), ""].join("\n");
+  return [
+    header(events, started, attached, roster),
+    "## Timeline",
+    "",
+    entries.join("\n\n"),
+    "",
+  ].join("\n");
 }
 
 function header(
   events: readonly SignedEvent[],
   started: { sessionId: string; agent: string; sandboxProvider: string } | undefined,
+  attached: { agent: string; version?: string | undefined } | undefined,
   roster: Map<string, { displayName: string; role: Role }>,
 ): string {
   const first = events[0];
@@ -227,9 +244,13 @@ function header(
       : `Side Street session ${code(started.sessionId)}`;
   const lines = [`# ${title}`, ""];
   if (started !== undefined) {
-    lines.push(
-      `- **Agent:** ${code(started.agent)} · **Sandbox:** ${code(started.sandboxProvider)}`,
-    );
+    // The agent that attached is the one that ran. `session_started` records
+    // only what the session expected, written before any bridge existed.
+    const agent =
+      attached === undefined
+        ? started.agent
+        : `${attached.agent}${attached.version === undefined ? "" : ` ${attached.version}`}`;
+    lines.push(`- **Agent:** ${code(agent)} · **Sandbox:** ${code(started.sandboxProvider)}`);
   }
   if (first === undefined || last === undefined) {
     lines.push("- **Events:** none — this session has no log to show.", "");

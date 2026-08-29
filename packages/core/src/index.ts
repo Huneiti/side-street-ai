@@ -40,6 +40,7 @@ export {
   type TurnPhase,
 } from "./steering.js";
 export {
+  agentAttachParamsSchema,
   agentFrameSchema,
   agentServerFrameSchema,
   joinParamsSchema,
@@ -47,6 +48,7 @@ export {
   replayResponseSchema,
   serverFrameSchema,
   viewerFrameSchema,
+  type AgentAttachParams,
   type AgentFrame,
   type AgentServerFrame,
   type JoinParams,

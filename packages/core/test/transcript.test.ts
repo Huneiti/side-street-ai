@@ -52,6 +52,24 @@ describe("transcript header", () => {
     expect(md).toContain("| Alice (`alice`) | driver |");
   });
 
+  it("names the agent that attached, not the one the session expected", async () => {
+    const events = await log([
+      started,
+      {
+        authorId: "agent",
+        body: { type: "agent_attached", payload: { agent: "gemini", version: "0.57.0" } },
+      },
+    ]);
+    const md = toMarkdown(events);
+    // `session_started` says claude-code; the bridge that turned up says otherwise.
+    expect(md).toContain("**Agent:** `gemini 0.57.0`");
+    expect(md).toContain("agent attached: `gemini 0.57.0` (self-declared)");
+  });
+
+  it("falls back to the expected agent when no bridge declared itself", async () => {
+    expect(toMarkdown(await log([started]))).toContain("**Agent:** `claude-code`");
+  });
+
   it("says so plainly when there is nothing to show", async () => {
     expect(toMarkdown([])).toContain("**Events:** none");
   });

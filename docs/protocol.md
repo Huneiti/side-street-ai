@@ -32,6 +32,7 @@ position. A log tail can be verified independently given the hash of the event p
 | Type                  | Author        | Payload (summary)                                                                 |
 | --------------------- | ------------- | --------------------------------------------------------------------------------- |
 | `session_started`     | system        | `sessionId`, `agent`, `sandboxProvider`                                           |
+| `agent_attached`      | agent         | `agent`, optional `version` — **self-declared** by the connecting bridge          |
 | `participant_joined`  | the joiner    | `participantId`, `displayName`, `role`                                            |
 | `participant_left`    | the leaver    | `participantId`                                                                   |
 | `role_changed`        | actor causing | `participantId`, new `role`                                                       |
@@ -193,10 +194,19 @@ grant's: a credential echoed after expiry is still a secret in front of everyone
 The sandbox side learns which of its environment values are secret from the
 `SIDE_STREET_SECRET_ENV` boot variable, which names the injected keys.
 
+**Identity**: the bridge declares what it is in the socket's query string
+(`/agent?agent=gemini&agentVersion=0.57.0`), which is logged as `agent_attached`. Both are
+optional — a bridge that declares nothing leaves the agent unrecorded rather than
+misrecorded. It is a self-report from the least trustworthy speaker in the session, so the
+log records that the thing on the agent socket _claimed_ this, and readers present it as
+declared. `session_started` still carries the agent the session expected, written before any
+bridge existed; `agent_attached` is what actually turned up, and a session whose agent died
+and was replaced has one of each attach rather than one overwritten field.
+
 **Author restriction**: the sandbox is the least trustworthy speaker in a session — a prompt
 injection lands there first, and an injected agent controls the process holding this socket.
 It may therefore only submit bodies an agent authors. A `human_message`, `control_handoff`,
-or `role_changed` arriving here is rejected as an invalid frame, so nothing the agent says
+`role_changed`, or `agent_attached` arriving here is rejected as an invalid frame, so nothing the agent says
 can forge another party's attribution in the log (PLAN.md invariant 2).
 
 **Approval gates**: a `permission_request` from the agent is logged and broadcast, then held

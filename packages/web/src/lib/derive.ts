@@ -101,6 +101,15 @@ export function deriveSession(events: readonly SignedEvent[]): DerivedSession {
         }
         break;
       }
+      case "agent_attached":
+        timeline.push({
+          kind: "system",
+          key,
+          text: `🤖 agent attached: ${body.payload.agent}${
+            body.payload.version === undefined ? "" : ` ${body.payload.version}`
+          }`,
+        });
+        break;
       case "participant_joined":
         roster.set(body.payload.participantId, {
           id: body.payload.participantId,

@@ -21,6 +21,23 @@ describe("agentSocketUrl", () => {
   });
 });
 
+describe("agentSocketUrl identity", () => {
+  it("declares the agent and version to the session", () => {
+    expect(
+      agentSocketUrl("http://localhost:8787/session/demo", {
+        agent: "gemini",
+        version: "0.57.0",
+      }),
+    ).toBe("ws://localhost:8787/session/demo/agent?agent=gemini&agentVersion=0.57.0");
+  });
+
+  it("omits a version the agent did not report", () => {
+    expect(agentSocketUrl("http://h/session/d", { agent: "codex" })).toBe(
+      "ws://h/session/d/agent?agent=codex",
+    );
+  });
+});
+
 class FakeWebSocket implements WebSocketLike {
   readonly sent: string[] = [];
   private listener: ((event: { data: unknown }) => void) | undefined;

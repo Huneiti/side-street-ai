@@ -179,6 +179,35 @@ describe("steering through the actor", () => {
   });
 });
 
+describe("an agent attaching", () => {
+  it("logs what the bridge declared, attributed to the agent", async () => {
+    const { store, actor } = await seededSession();
+    await actor.onAgentAttached({ agent: "gemini", version: "0.57.0" });
+    const event = store.events.at(-1);
+    expect(event?.authorId).toBe("agent");
+    expect(event?.body).toEqual({
+      type: "agent_attached",
+      payload: { agent: "gemini", version: "0.57.0" },
+    });
+  });
+
+  it("logs nothing when a bridge declares nothing", async () => {
+    const { store, actor } = await seededSession();
+    const before = store.events.length;
+    await actor.onAgentAttached();
+    expect(store.events.length).toBe(before);
+  });
+
+  it("records every attach, so a replaced agent leaves both in the log", async () => {
+    const { store, actor } = await seededSession();
+    await actor.onAgentAttached({ agent: "claude-code" });
+    await actor.onAgentAttached({ agent: "codex" });
+    expect(
+      store.events.filter((e) => e.body.type === "agent_attached").map((e) => e.body.payload),
+    ).toEqual([{ agent: "claude-code" }, { agent: "codex" }]);
+  });
+});
+
 describe("roster and the wheel", () => {
   it("records handoffs with the previous driver attributed", async () => {
     const { store, actor } = await seededSession();

@@ -103,6 +103,17 @@ export const agentServerFrameSchema = z.discriminatedUnion("type", [
 ]);
 export type AgentServerFrame = z.infer<typeof agentServerFrameSchema>;
 
+/**
+ * Query params on the agent socket: what the connecting bridge says it is.
+ * Optional, because a bridge that declares nothing is still a valid bridge —
+ * it just leaves the session's agent unrecorded rather than misrecorded.
+ */
+export const agentAttachParamsSchema = z.object({
+  agent: z.string().min(1).max(128).optional(),
+  agentVersion: z.string().min(1).max(64).optional(),
+});
+export type AgentAttachParams = z.infer<typeof agentAttachParamsSchema>;
+
 export const joinParamsSchema = z.object({
   participantId: z.string().min(1),
   displayName: z.string().min(1),

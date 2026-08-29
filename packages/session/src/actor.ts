@@ -36,6 +36,12 @@ export interface RosterEntry {
   role: Role;
 }
 
+/** What a connecting bridge says it is. Declared, not verified — see the event. */
+export interface AgentIdentity {
+  agent: string;
+  version?: string | undefined;
+}
+
 export interface SessionActorDeps {
   store: EventStore;
   broadcaster: Broadcaster;
@@ -245,7 +251,16 @@ export class SessionActor {
    * logged as unresolved, and the humans choose. Re-approving the same step
    * is simply its next attempt.
    */
-  async onAgentAttached(): Promise<void> {
+  async onAgentAttached(identity?: AgentIdentity): Promise<void> {
+    if (identity !== undefined) {
+      await this.append("agent", {
+        type: "agent_attached",
+        payload: {
+          agent: identity.agent,
+          ...(identity.version === undefined ? {} : { version: identity.version }),
+        },
+      });
+    }
     for (const step of this.inFlightSteps.values()) {
       await this.append("system", {
         type: "step_unresolved",

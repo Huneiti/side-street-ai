@@ -350,11 +350,23 @@ describe("attribution forgery", () => {
     );
     await agent.waitFor((f) => f["type"] === "error");
 
+    // A sandbox says what it is once, in the handshake, and the log records
+    // that as a claim. Re-declaring mid-session — after a reader has formed a
+    // view of which agent is running — is not a fact it gets to author.
+    agent.ws.send(
+      JSON.stringify({
+        type: "agent_event",
+        body: { type: "agent_attached", payload: { agent: "claude-code" } },
+      }),
+    );
+    await agent.waitFor((f) => f["type"] === "error");
+
     // Rejected at the schema boundary, so nothing reached the log.
     const replay = await SELF.fetch(`${BASE}/session/${sessionId}/events?from=0`);
     const { events } = (await replay.json()) as { events: SignedEvent[] };
     expect(events.map((e) => e.body.type)).not.toContain("control_handoff");
     expect(events.map((e) => e.body.type)).not.toContain("human_message");
+    expect(events.map((e) => e.body.type)).not.toContain("agent_attached");
   });
 
   it("rejects a viewer trying to forge agent output", async () => {

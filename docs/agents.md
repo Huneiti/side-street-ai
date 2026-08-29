@@ -72,10 +72,14 @@ thoughts, plans, diffs) arrive as `unknown_update` and are dropped rather than r
 deliberate forward-compatibility choice in `packages/acp-client/src/protocol.ts`, so an agent
 ahead of us degrades instead of breaking the session.
 
+**Recorded.** The bridge declares what it is when it connects, and the session logs it as
+`agent_attached` — from the agent's own ACP `agentInfo` when it reports one, otherwise the
+name you asked for. An exported transcript therefore names the agent that actually ran, marked
+as self-declared, because a sandbox reporting on itself is exactly as trustworthy as that
+sounds.
+
 **Not yet.** Prompts are text-only content blocks: an agent advertising image or audio prompt
-capabilities gets text anyway. And the `session_started` event still records a hard-coded agent
-name, so a transcript exported from a Gemini session will name the wrong agent
-([#32](https://github.com/abedelayyan/side-street-ai/issues/32)).
+capabilities gets text anyway.
 
 ## Where the automated coverage is
 

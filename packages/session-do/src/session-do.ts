@@ -11,6 +11,7 @@ import {
   joinParamsSchema,
   signedEventSchema,
   verifyChain,
+  agentAttachParamsSchema,
   viewerFrameSchema,
   type AgentServerFrame,
   type Role,
@@ -178,7 +179,7 @@ export class SessionDurableObject extends DurableObject<Env> {
     }
     if (url.pathname.endsWith("/agent")) {
       await this.ensureStarted();
-      return await this.acceptAgent(request);
+      return await this.acceptAgent(request, url);
     }
     return Response.json({ error: "not found" }, { status: 404 });
   }
@@ -214,9 +215,15 @@ export class SessionDurableObject extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  private async acceptAgent(request: Request): Promise<Response> {
+  private async acceptAgent(request: Request, url: URL): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return Response.json({ error: "expected websocket upgrade" }, { status: 426 });
+    }
+    // What the bridge says it is. A bridge that declares nothing still
+    // attaches — the session records no agent rather than the wrong one.
+    const declared = agentAttachParamsSchema.safeParse(Object.fromEntries(url.searchParams));
+    if (!declared.success) {
+      return Response.json({ error: "invalid agent parameters" }, { status: 400 });
     }
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -227,7 +234,11 @@ export class SessionDurableObject extends DurableObject<Env> {
     // answer a question nobody asked. Undelivered prompts are human steering
     // and still stand.
     this.outbox = this.outbox.filter((frame) => frame.type === "prompt");
-    await this.actor.onAgentAttached();
+    await this.actor.onAgentAttached(
+      declared.data.agent === undefined
+        ? undefined
+        : { agent: declared.data.agent, version: declared.data.agentVersion },
+    );
     await this.persistState();
     this.flushOutbox(server);
     return new Response(null, { status: 101, webSocket: client });
