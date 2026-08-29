@@ -11,6 +11,16 @@ import { z } from "zod";
 
 export const PROTOCOL_VERSION = 1;
 
+/**
+ * ACP's own JSON-RPC error codes, on top of the standard range. Only the ones
+ * we act on are listed; everything else is passed through as a plain agent
+ * error, which is what an unrecognised code should look like.
+ */
+export const ACP_ERROR = {
+  /** `session/new` before `authenticate`: the agent has no usable credentials. */
+  authRequired: -32000,
+} as const;
+
 const idSchema = z.union([z.string(), z.number()]);
 
 export const jsonRpcRequestSchema = z.object({
@@ -80,7 +90,30 @@ export const promptResultSchema = z.object({ stopReason: stopReasonSchema });
 
 export const newSessionResultSchema = z.object({ sessionId: z.string() });
 
-export const initializeResultSchema = z.object({ protocolVersion: z.number() }).passthrough();
+/**
+ * One way an agent will accept credentials. The shape is deliberately loose:
+ * ACP has both a plain variant and a `terminal` one carrying a command to run,
+ * and a client that only needs to name the method should not break when a new
+ * variant appears.
+ */
+export const authMethodSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string().nullish(),
+  })
+  .passthrough();
+export type AuthMethod = z.infer<typeof authMethodSchema>;
+
+export const initializeResultSchema = z
+  .object({
+    protocolVersion: z.number(),
+    /** How this agent will take credentials; empty means it needs none. */
+    authMethods: z.array(authMethodSchema).default([]),
+    agentInfo: z.object({ name: z.string(), version: z.string().optional() }).partial().optional(),
+  })
+  .passthrough();
+export type InitializeResult = z.infer<typeof initializeResultSchema>;
 
 export const permissionOptionSchema = z.object({
   optionId: z.string(),

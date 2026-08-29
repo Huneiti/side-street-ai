@@ -1,12 +1,16 @@
-export { AcpClient, type AcpClientHandlers } from "./client.js";
+export { AcpClient, AcpError, type AcpClientHandlers } from "./client.js";
 export {
+  ACP_ERROR,
   PROTOCOL_VERSION,
+  authMethodSchema,
   contentBlockSchema,
   permissionRequestParamsSchema,
   sessionUpdateParamsSchema,
   sessionUpdateSchema,
   stopReasonSchema,
+  type AuthMethod,
   type ContentBlock,
+  type InitializeResult,
   type PermissionOutcome,
   type PermissionRequestParams,
   type SessionUpdate,

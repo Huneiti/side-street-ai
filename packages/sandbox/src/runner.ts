@@ -1,12 +1,13 @@
 /**
  * The bridge runner: the process that turns the tested-in-isolation pieces
- * into a live session. It spawns a real ACP agent (claude-code-acp by
- * default), opens the session's `/agent` WebSocket, and wires both into
- * AgentBridge. This is what runs inside the sandbox in production and on a
- * dev machine for the Phase 1 exit benchmark.
+ * into a live session. It spawns a real ACP agent — Claude Code by default,
+ * or any other by name or command — authenticates if that agent asks, opens
+ * the session's `/agent` WebSocket, and wires both into AgentBridge. This is
+ * what runs inside the sandbox in production and on a dev machine for the
+ * Phase 1 exit benchmark.
  */
 
-import { AcpClient, type PermissionOutcome } from "@side-street/acp-client";
+import { AcpClient, AcpError, type PermissionOutcome } from "@side-street/acp-client";
 import { AgentBridge, type SessionSocket } from "./bridge.js";
 import { secretsFromEnv } from "./credentials.js";
 import { spawnAgent } from "./stdio.js";
@@ -50,19 +51,101 @@ export function sessionSocketFromWebSocket(ws: WebSocketLike): SessionSocket {
   };
 }
 
-const DEFAULT_AGENT_COMMAND = ["npx", "--yes", "@agentclientprotocol/claude-agent-acp"];
+/**
+ * Backing agents we ship a command for. The interface is the protocol, not
+ * this table — any ACP agent works if you pass its command after `--` — but a
+ * name nobody has to look up is what makes "swap the agent" a real option
+ * rather than a claim (PLAN.md Phase 3: prove agent-agnosticism publicly).
+ * ponytail: a flat map, not a plugin registry. It exists to save typing an
+ * incantation; if an agent ever needs per-agent wiring, that is the moment for
+ * something bigger than a lookup.
+ */
+export const AGENT_PRESETS = {
+  "claude-code": ["npx", "--yes", "@agentclientprotocol/claude-agent-acp"],
+  codex: ["npx", "--yes", "@zed-industries/codex-acp"],
+  gemini: ["npx", "--yes", "@google/gemini-cli", "--acp"],
+} as const satisfies Record<string, readonly string[]>;
+
+export type AgentName = keyof typeof AGENT_PRESETS;
+
+export const DEFAULT_AGENT: AgentName = "claude-code";
+
+export interface RunnerArgs {
+  sessionUrl: string;
+  workspace: string;
+  /** What to call the agent in logs: a preset name, or the command's own name. */
+  agent: string;
+  command: readonly string[];
+  /** Auth method to present before opening a session, if the agent wants one. */
+  authMethodId: string | undefined;
+}
+
+/**
+ * `runner <session-url> <workspace> [--agent <name>] [--auth <methodId>] [-- <command...>]`
+ *
+ * A bare trailing command with no `--` is still accepted: that was the
+ * original form, and the Phase 1 benchmark runbook uses it.
+ */
+export function parseArgs(argv: readonly string[]): RunnerArgs | undefined {
+  const positional: string[] = [];
+  let agent: string | undefined;
+  let authMethodId: string | undefined;
+  let command: readonly string[] | undefined;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] as string;
+    if (arg === "--") {
+      command = argv.slice(i + 1);
+      break;
+    }
+    if (arg === "--agent" || arg === "--auth") {
+      const value = argv[i + 1];
+      if (value === undefined) {
+        return undefined;
+      }
+      if (arg === "--agent") {
+        agent = value;
+      } else {
+        authMethodId = value;
+      }
+      i++;
+      continue;
+    }
+    positional.push(arg);
+  }
+
+  const [sessionUrl, workspace, ...rest] = positional;
+  if (sessionUrl === undefined || workspace === undefined) {
+    return undefined;
+  }
+  // An explicit command wins over a preset; a preset name is only shorthand
+  // for one of these lists, so an unknown name with no command is an error
+  // rather than a silent fallback to the default agent.
+  const literal = command ?? (rest.length > 0 ? rest : undefined);
+  const name = agent ?? DEFAULT_AGENT;
+  const preset: readonly string[] | undefined = AGENT_PRESETS[name as AgentName];
+  const resolved = literal ?? preset;
+  if (resolved === undefined || resolved.length === 0) {
+    return undefined;
+  }
+  return { sessionUrl, workspace, agent: name, command: resolved, authMethodId };
+}
+
+const USAGE = [
+  "Usage: runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] [-- <command...>]",
+  `  agents: ${Object.keys(AGENT_PRESETS).join(", ")} (default: ${DEFAULT_AGENT})`,
+  "  e.g. runner http://localhost:8787/session/demo ../sample-repo --agent codex",
+].join("\n");
 
 export async function main(argv: readonly string[]): Promise<void> {
-  const [sessionUrl, workspace, ...agentCommand] = argv;
-  if (sessionUrl === undefined || workspace === undefined) {
-    console.error(
-      "Usage: runner <session-url> <workspace-dir> [agent-command...]\n" +
-        "  e.g. runner http://localhost:8787/session/demo ../sample-repo",
-    );
+  const parsed = parseArgs(argv);
+  if (parsed === undefined) {
+    console.error(USAGE);
     process.exitCode = 1;
     return;
   }
-  const [command, ...args] = agentCommand.length > 0 ? agentCommand : DEFAULT_AGENT_COMMAND;
+  const { sessionUrl, workspace, authMethodId } = parsed;
+  const [command, ...args] = parsed.command;
 
   const agent = spawnAgent(command as string, args, {
     cwd: workspace,
@@ -92,9 +175,12 @@ export async function main(argv: readonly string[]): Promise<void> {
     },
   });
 
-  await client.initialize();
-  const acpSessionId = await client.newSession({ cwd: workspace });
-  console.error(`agent ready (acp session ${acpSessionId})`);
+  const handshake = await client.initialize();
+  if (authMethodId !== undefined) {
+    await client.authenticate(authMethodId);
+  }
+  const acpSessionId = await openSession(client, workspace, handshake.authMethods, parsed.agent);
+  console.error(`agent ready: ${parsed.agent} (acp session ${acpSessionId})`);
 
   const wsUrl = agentSocketUrl(sessionUrl);
   const ws = new WebSocket(wsUrl);
@@ -126,4 +212,37 @@ export async function main(argv: readonly string[]): Promise<void> {
   });
   console.error(`declared ${secrets.length} session credential(s) to the redaction pass`);
   console.error(`bridge connected to ${wsUrl}`);
+}
+
+/**
+ * Opens the ACP session, turning the one failure a new agent actually hits —
+ * "this agent has no credentials yet" — into the command that fixes it.
+ * Without it, pointing the runner at a second agent for the first time fails
+ * with a bare JSON-RPC code and no hint that a login exists.
+ */
+async function openSession(
+  client: AcpClient,
+  workspace: string,
+  authMethods: readonly { id: string; name: string }[],
+  agentName: string,
+): Promise<string> {
+  try {
+    return await client.newSession({ cwd: workspace });
+  } catch (error) {
+    if (!(error instanceof AcpError) || !error.isAuthRequired) {
+      throw error;
+    }
+    if (authMethods.length === 0) {
+      throw new Error(
+        `${agentName} wants authentication but advertised no method for it — ` +
+          "log in with the agent's own CLI, then rerun",
+      );
+    }
+    throw new Error(
+      [
+        `${agentName} needs credentials. Rerun with one of:`,
+        ...authMethods.map((method) => `  --auth ${method.id}   (${method.name})`),
+      ].join("\n"),
+    );
+  }
 }

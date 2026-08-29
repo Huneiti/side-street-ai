@@ -20,6 +20,8 @@ interface Frame {
 export class FakeAgent {
   /** Permission decisions received back from the client, for assertions. */
   readonly permissionOutcomes: unknown[] = [];
+  /** Which auth method the client presented, if any — for assertions. */
+  authenticatedWith: string | undefined;
   private nextRequestId = 1000;
   private readonly pendingPermissions = new Map<string | number, (outcome: unknown) => void>();
   private activePrompt: { id: string | number; cancelled: boolean } | null = null;
@@ -29,6 +31,10 @@ export class FakeAgent {
     private readonly script: {
       /** Emit a permission request after this many streamed updates (off by default). */
       requestPermissionAfterChunks?: number;
+      /** Advertised in the initialize response, as a real agent advertises its logins. */
+      authMethods?: Array<{ id: string; name: string }>;
+      /** Refuse `session/new` with auth_required until `authenticate` succeeds. */
+      requireAuth?: boolean;
     } = {},
   ) {
     transport.onMessage((raw) => {
@@ -50,9 +56,21 @@ export class FakeAgent {
 
     switch (frame.method) {
       case "initialize":
-        this.respond(frame.id, { protocolVersion: 1, agentCapabilities: {} });
+        this.respond(frame.id, {
+          protocolVersion: 1,
+          agentCapabilities: {},
+          authMethods: this.script.authMethods ?? [],
+        });
+        return;
+      case "authenticate":
+        this.authenticatedWith = (frame.params as { methodId: string }).methodId;
+        this.respond(frame.id, {});
         return;
       case "session/new":
+        if (this.script.requireAuth === true && this.authenticatedWith === undefined) {
+          this.respond(frame.id, undefined, { code: -32000, message: "Authentication required" });
+          return;
+        }
         this.respond(frame.id, { sessionId: "sess-1" });
         return;
       case "session/prompt":

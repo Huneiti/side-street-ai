@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AcpClient } from "../src/client.js";
+import { AcpClient, AcpError } from "../src/client.js";
 import type { PermissionOutcome, SessionUpdate } from "../src/protocol.js";
 import { createTransportPair } from "../src/transport.js";
 import { FakeAgent } from "../src/fake-agent.js";
@@ -12,6 +12,8 @@ interface Recorded {
 function setup(options?: {
   requestPermissionAfterChunks?: number;
   decide?: () => Promise<PermissionOutcome>;
+  authMethods?: Array<{ id: string; name: string }>;
+  requireAuth?: boolean;
 }): { client: AcpClient; agent: FakeAgent; recorded: Recorded } {
   const [clientSide, agentSide] = createTransportPair();
   const recorded: Recorded = { updates: [], errors: [] };
@@ -19,6 +21,8 @@ function setup(options?: {
     ...(options?.requestPermissionAfterChunks === undefined
       ? {}
       : { requestPermissionAfterChunks: options.requestPermissionAfterChunks }),
+    ...(options?.authMethods === undefined ? {} : { authMethods: options.authMethods }),
+    ...(options?.requireAuth === undefined ? {} : { requireAuth: options.requireAuth }),
   });
   const client = new AcpClient(clientSide, {
     onSessionUpdate: (_sessionId, update) => recorded.updates.push(update),
@@ -103,5 +107,44 @@ describe("AcpClient", () => {
     const turn = client.prompt(sessionId, [{ type: "text", text: "task" }]);
     client.close();
     await expect(turn).rejects.toThrow("ACP client closed");
+  });
+});
+
+describe("authentication", () => {
+  const login = [{ id: "oauth", name: "Log in with OAuth" }];
+
+  it("reports the agent's advertised auth methods from the handshake", async () => {
+    const { client } = setup({ authMethods: login });
+    const result = await client.initialize();
+    expect(result.authMethods).toEqual(login);
+  });
+
+  it("reports no methods for an agent that needs none", async () => {
+    const { client } = setup();
+    expect((await client.initialize()).authMethods).toEqual([]);
+  });
+
+  it("surfaces auth_required as itself, not as an opaque agent error", async () => {
+    const { client } = setup({ authMethods: login, requireAuth: true });
+    await client.initialize();
+    const error = await client.newSession({ cwd: "/repo" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AcpError);
+    expect(error).toMatchObject({ code: -32000, isAuthRequired: true });
+  });
+
+  it("opens a session once credentials are presented", async () => {
+    const { client, agent } = setup({ authMethods: login, requireAuth: true });
+    await client.initialize();
+    await client.authenticate("oauth");
+    expect(agent.authenticatedWith).toBe("oauth");
+    expect(await client.newSession({ cwd: "/repo" })).toBe("sess-1");
+  });
+
+  it("treats only auth_required as an auth prompt", () => {
+    // A method-not-found or a transport failure must not send a caller off to
+    // authenticate; only -32000 means "present credentials".
+    expect(new AcpError(-32000, "Authentication required").isAuthRequired).toBe(true);
+    expect(new AcpError(-32601, "method not found").isAuthRequired).toBe(false);
+    expect(new AcpError(-32603, "internal error").isAuthRequired).toBe(false);
   });
 });

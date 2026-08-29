@@ -6,6 +6,7 @@
  */
 
 import {
+  ACP_ERROR,
   PROTOCOL_VERSION,
   initializeResultSchema,
   jsonRpcNotificationSchema,
@@ -16,6 +17,7 @@ import {
   promptResultSchema,
   sessionUpdateParamsSchema,
   type ContentBlock,
+  type InitializeResult,
   type JsonRpcId,
   type PermissionOutcome,
   type PermissionRequestParams,
@@ -23,6 +25,26 @@ import {
   type StopReason,
 } from "./protocol.js";
 import type { Transport } from "./transport.js";
+
+/** Sent as `clientInfo`; agents log it, and it is how we appear in their traces. */
+const CLIENT_NAME = "side-street";
+
+/** A JSON-RPC error from the agent, keeping the code so callers can act on it. */
+export class AcpError extends Error {
+  constructor(
+    readonly code: number,
+    message: string,
+    readonly data?: unknown,
+  ) {
+    super(message);
+    this.name = "AcpError";
+  }
+
+  /** The agent wants credentials before it will open a session. */
+  get isAuthRequired(): boolean {
+    return this.code === ACP_ERROR.authRequired;
+  }
+}
 
 export interface AcpClientHandlers {
   onSessionUpdate(sessionId: string, update: SessionUpdate): void;
@@ -50,12 +72,28 @@ export class AcpClient {
     });
   }
 
-  async initialize(): Promise<void> {
+  /**
+   * Handshake. Returns what the agent said about itself — notably its
+   * `authMethods`, which is how a caller learns that this agent needs
+   * credentials before `session/new` will work.
+   */
+  async initialize(): Promise<InitializeResult> {
     const raw = await this.request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
+      clientInfo: { name: CLIENT_NAME },
     });
-    initializeResultSchema.parse(raw);
+    return initializeResultSchema.parse(raw);
+  }
+
+  /**
+   * Present credentials using one of the methods `initialize` advertised.
+   * Which method, and how the agent obtains the credential behind it, is the
+   * agent's business — Side Street never sees it. This is the one call that
+   * makes a second backing agent attachable without special-casing it.
+   */
+  async authenticate(methodId: string): Promise<void> {
+    await this.request("authenticate", { methodId });
   }
 
   async newSession(params: { cwd: string }): Promise<string> {
@@ -122,7 +160,13 @@ export class AcpClient {
     }
     this.pending.delete(response.id);
     if (response.error) {
-      pending.reject(new Error(`agent error ${response.error.code}: ${response.error.message}`));
+      pending.reject(
+        new AcpError(
+          response.error.code,
+          `agent error ${response.error.code}: ${response.error.message}`,
+          response.error.data,
+        ),
+      );
     } else {
       pending.resolve(response.result);
     }
