@@ -48,6 +48,7 @@ interface Harness {
   received: SignedEvent[];
   statuses: string[];
   rejections: Array<{ messageId: string; reason: string }>;
+  handoffRejections: string[];
   fetches: string[];
   resolveReplay(events: SignedEvent[]): void;
 }
@@ -57,6 +58,7 @@ function harness(): Harness {
   const received: SignedEvent[] = [];
   const statuses: string[] = [];
   const rejections: Array<{ messageId: string; reason: string }> = [];
+  const handoffRejections: string[] = [];
   const fetches: string[] = [];
   let pendingReplay: ((events: SignedEvent[]) => void) | undefined;
 
@@ -69,6 +71,7 @@ function harness(): Harness {
     onEvent: (e) => received.push(e),
     onStatus: (s) => statuses.push(s),
     onRejection: (messageId, reason) => rejections.push({ messageId, reason }),
+    onHandoffRejected: (reason) => handoffRejections.push(reason),
     createSocket: () => {
       const socket = new FakeSocket();
       sockets.push(socket);
@@ -91,6 +94,7 @@ function harness(): Harness {
     received,
     statuses,
     rejections,
+    handoffRejections,
     fetches,
     resolveReplay: (events) => pendingReplay?.(events),
   };
@@ -148,6 +152,14 @@ describe("SessionClient", () => {
     ]);
     h.socket.receive({ type: "steer_rejected", messageId: id, reason: "observers are read-only" });
     expect(h.rejections).toEqual([{ messageId: id, reason: "observers are read-only" }]);
+  });
+
+  it("surfaces a refused wheel claim", () => {
+    const h = harness();
+    h.client.takeWheel();
+    h.socket.receive({ type: "handoff_rejected", reason: "the wheel is held by bob" });
+    expect(h.handoffRejections).toEqual(["the wheel is held by bob"]);
+    expect(h.rejections).toEqual([]);
   });
 
   it("sends a decide frame for a permission decision", () => {

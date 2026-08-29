@@ -70,7 +70,8 @@ Roles: **Driver** (steers, interrupts, approves tools — at most one holds the 
    second cancel.
 7. **Take the wheel**: only the current Driver hands off; a driverless wheel can be claimed
    by any non-Observer. The Driver leaving frees the wheel. Every transfer is logged as
-   `control_handoff`.
+   `control_handoff`; a refused claim goes back to the requester alone as
+   `handoff_rejected` and never touches the log.
 
 ## Approvals and idempotency
 
@@ -150,12 +151,13 @@ Viewer → server frames:
 
 Server → viewer frames:
 
-| Frame            | Fields                             | Meaning                                                      |
-| ---------------- | ---------------------------------- | ------------------------------------------------------------ |
-| `welcome`        | `participantId`, `role`, `lastSeq` | Sent once on join; `lastSeq` tells the client what to replay |
-| `event`          | `event` (signed envelope)          | Live fan-out of every appended event                         |
-| `steer_rejected` | `messageId`, `reason`              | Private rejection (sender only; never broadcast)             |
-| `error`          | `message`                          | Malformed frame                                              |
+| Frame              | Fields                             | Meaning                                                      |
+| ------------------ | ---------------------------------- | ------------------------------------------------------------ |
+| `welcome`          | `participantId`, `role`, `lastSeq` | Sent once on join; `lastSeq` tells the client what to replay |
+| `event`            | `event` (signed envelope)          | Live fan-out of every appended event                         |
+| `steer_rejected`   | `messageId`, `reason`              | Private rejection (sender only; never broadcast)             |
+| `handoff_rejected` | `reason`                           | Private rejection of a `handoff` (sender only)               |
+| `error`            | `message`                          | Malformed frame                                              |
 
 A participant's departure is logged only when their last open socket closes (multi-tab and
 reconnect races keep them present).

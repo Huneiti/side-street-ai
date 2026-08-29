@@ -52,6 +52,8 @@ export interface SessionClientOptions {
   onEvent(event: SignedEvent): void;
   onStatus?(status: SessionStatus): void;
   onRejection?(messageId: string, reason: string): void;
+  /** A refused wheel claim; unlike a steer rejection it has no message to match. */
+  onHandoffRejected?(reason: string): void;
   onError?(error: Error): void;
   /** Injectable for tests; defaults to the browser WebSocket. */
   createSocket?(url: string): WebSocketLike;
@@ -174,6 +176,9 @@ export class SessionClient {
         return;
       case "steer_rejected":
         this.options.onRejection?.(frame.messageId, frame.reason);
+        return;
+      case "handoff_rejected":
+        this.options.onHandoffRejected?.(frame.reason);
         return;
       case "error":
         this.options.onError?.(new Error(frame.message));

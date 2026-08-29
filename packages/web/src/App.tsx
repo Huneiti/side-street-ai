@@ -83,6 +83,7 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
       onEvent: (event) => setEvents((prev) => [...prev, event]),
       onStatus: setStatus,
       onRejection: (_messageId, reason) => setNotice(reason),
+      onHandoffRejected: setNotice,
       onError: (error) => setNotice(error.message),
     });
     clientRef.current = client;

@@ -57,6 +57,9 @@ export const serverFrameSchema = z.discriminatedUnion("type", [
     messageId: z.string().min(1),
     reason: z.string().min(1),
   }),
+  // A refused wheel claim. No correlation id: a `handoff` frame carries none,
+  // and the sender only ever has one in flight.
+  z.object({ type: z.literal("handoff_rejected"), reason: z.string().min(1) }),
   z.object({ type: z.literal("error"), message: z.string().min(1) }),
 ]);
 export type ServerFrame = z.infer<typeof serverFrameSchema>;

@@ -190,13 +190,47 @@ describe("roster and the wheel", () => {
     expect(actor.driverId).toBe("bob");
   });
 
-  it("ignores handoffs from non-drivers and to unknown participants", async () => {
-    const { store, actor } = await seededSession();
+  it("rejects handoffs from non-drivers and to unknown participants, to the requester alone", async () => {
+    const { store, broadcaster, actor } = await seededSession();
     const before = store.events.length;
     await actor.handoff("bob", "bob");
     await actor.handoff("alice", "mallory");
+    await actor.handoff("mallory", "mallory");
     expect(store.events.length).toBe(before);
     expect(actor.driverId).toBe("alice");
+    expect(broadcaster.privates).toEqual([
+      {
+        participantId: "bob",
+        message: {
+          kind: "handoff_rejected",
+          reason: "only the current driver may hand off control",
+        },
+      },
+      {
+        participantId: "alice",
+        message: {
+          kind: "handoff_rejected",
+          reason: "no such participant to hand the wheel to",
+        },
+      },
+      {
+        participantId: "mallory",
+        message: { kind: "handoff_rejected", reason: "not a session participant" },
+      },
+    ]);
+  });
+
+  it("tells an observer why a driverless wheel is not theirs to claim", async () => {
+    const { broadcaster, actor } = await seededSession();
+    await actor.leave("alice");
+    await actor.handoff("carol", "carol");
+    expect(actor.driverId).toBeNull();
+    expect(broadcaster.privates).toEqual([
+      {
+        participantId: "carol",
+        message: { kind: "handoff_rejected", reason: "observers cannot claim the wheel" },
+      },
+    ]);
   });
 
   it("frees the wheel and logs departure when the driver leaves", async () => {

@@ -22,7 +22,9 @@ export interface Broadcaster {
   sendTo(participantId: string, message: PrivateMessage): void;
 }
 
-export type PrivateMessage = { kind: "steer_rejected"; messageId: string; reason: string };
+export type PrivateMessage =
+  | { kind: "steer_rejected"; messageId: string; reason: string }
+  | { kind: "handoff_rejected"; reason: string };
 
 /**
  * The agent side of the session. With ACP (ADR-0002) `prompt` during a

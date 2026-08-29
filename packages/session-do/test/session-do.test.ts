@@ -70,6 +70,21 @@ describe("session lifecycle over WebSocket", () => {
     expect(alice.frames.filter(isEventOf("human_message"))).toHaveLength(0);
   });
 
+  it("privately rejects a wheel claim while the wheel is held", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor((f) => f["type"] === "welcome");
+    const bob = await connect(viewerPath(sessionId, "bob", "navigator"));
+    await bob.waitFor((f) => f["type"] === "welcome");
+    alice.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "alice" }));
+    await bob.waitFor(isEventOf("control_handoff"));
+
+    bob.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "bob" }));
+    const rejection = await bob.waitFor((f) => f["type"] === "handoff_rejected");
+    expect(rejection).toMatchObject({ reason: "only the current driver may hand off control" });
+    expect(alice.frames.filter((f) => f["type"] === "handoff_rejected")).toHaveLength(0);
+  });
+
   it("answers malformed frames with an error frame", async () => {
     const sessionId = freshSession();
     const alice = await connect(viewerPath(sessionId, "alice", "driver"));

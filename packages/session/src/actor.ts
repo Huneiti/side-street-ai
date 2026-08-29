@@ -187,11 +187,23 @@ export class SessionActor {
     this.applyEffects(result.effects);
   }
 
-  /** "Take the wheel": claim a free wheel or receive it from the current Driver. */
+  /**
+   * "Take the wheel": claim a free wheel or receive it from the current Driver.
+   * A refused claim goes back to the requester alone — the wheel is contended
+   * often enough that silence reads as a broken button.
+   */
   async handoff(requestedById: string, toParticipantId: string): Promise<void> {
+    const reject = (reason: string): void => {
+      this.deps.broadcaster.sendTo(requestedById, { kind: "handoff_rejected", reason });
+    };
     const requester = this.roster.get(requestedById);
     const target = this.roster.get(toParticipantId);
-    if (!requester || !target) {
+    if (!requester) {
+      reject("not a session participant");
+      return;
+    }
+    if (!target) {
+      reject("no such participant to hand the wheel to");
       return;
     }
     const previousDriver = this.steering.state.driverId;
@@ -200,6 +212,7 @@ export class SessionActor {
       toParticipantId,
     );
     if (!result.ok) {
+      reject(result.reason);
       return;
     }
     await this.append(requestedById, {

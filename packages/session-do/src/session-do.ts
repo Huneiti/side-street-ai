@@ -372,11 +372,10 @@ export class SessionDurableObject extends DurableObject<Env> {
   }
 
   private sendPrivate(participantId: string, message: PrivateMessage): void {
-    const frame: ServerFrame = {
-      type: "steer_rejected",
-      messageId: message.messageId,
-      reason: message.reason,
-    };
+    const frame: ServerFrame =
+      message.kind === "steer_rejected"
+        ? { type: "steer_rejected", messageId: message.messageId, reason: message.reason }
+        : { type: "handoff_rejected", reason: message.reason };
     for (const ws of this.viewerSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment;
       if (attachment.kind === "viewer" && attachment.participantId === participantId) {
