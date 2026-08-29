@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PermissionOutcome, SignedEvent } from "@side-street/core";
-import { deriveSession, type PendingPermission, type TimelineItem } from "./lib/derive.js";
+import type { PermissionOutcome, Role, SignedEvent } from "@side-street/core";
+import { canHandWheelTo, controlsFor } from "./lib/controls.js";
+import {
+  deriveSession,
+  type PendingPermission,
+  type RosterEntry,
+  type TimelineItem,
+} from "./lib/derive.js";
 import type { SessionStatus } from "./lib/session-client.js";
 
 export function SessionView({
@@ -8,8 +14,9 @@ export function SessionView({
   status,
   notice,
   self,
+  selfRole,
   onSteer,
-  onTakeWheel,
+  onHandoff,
   onDecide,
   onLeave,
 }: {
@@ -17,8 +24,10 @@ export function SessionView({
   status: SessionStatus;
   notice: string | null;
   self: string;
+  /** Role we joined with; the roster overrides it once our join replays. */
+  selfRole: Role;
   onSteer(text: string, delivery: "queue" | "interrupt"): void;
-  onTakeWheel(): void;
+  onHandoff(toParticipantId: string): void;
   onDecide(requestId: string, outcome: PermissionOutcome): void;
   onLeave(): void;
 }): ReactElement {
@@ -27,6 +36,8 @@ export function SessionView({
     [events],
   );
   const isDriver = driverId === self;
+  const role = roster.find((p) => p.id === self)?.role ?? selfRole;
+  const controls = controlsFor(role, isDriver);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -50,10 +61,12 @@ export function SessionView({
         </div>
         <div className="roster">
           {roster.map((p) => (
-            <span key={p.id} className={`chip chip-${p.role}`} title={p.role}>
-              {p.id === driverId ? "🛞 " : ""}
-              {p.displayName}
-            </span>
+            <ParticipantChip
+              key={p.id}
+              participant={p}
+              isWheelHolder={p.id === driverId}
+              onHandoff={canHandWheelTo(self, isDriver, p) ? onHandoff : undefined}
+            />
           ))}
           <button className="ghost" onClick={onLeave}>
             Leave
@@ -84,35 +97,68 @@ export function SessionView({
       {notice !== null && <div className="notice">{notice}</div>}
 
       <footer>
-        <button
-          className="ghost"
-          onClick={onTakeWheel}
-          disabled={isDriver}
-          title="Become the Driver"
-        >
-          🛞 Take the wheel
-        </button>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit("queue");
-            }
-          }}
-          placeholder={isDriver ? "Steer the agent…" : "Suggest to the driver…"}
-        />
-        <button onClick={() => submit("queue")}>Send</button>
-        <button
-          className="danger"
-          onClick={() => submit("interrupt")}
-          title="Cancel the running turn and send now"
-        >
-          Interrupt
-        </button>
+        {controls.canClaimWheel && (
+          <button className="ghost" onClick={() => onHandoff(self)} title="Become the Driver">
+            🛞 Take the wheel
+          </button>
+        )}
+        {controls.blockedReason !== null ? (
+          <span className="read-only">{controls.blockedReason}</span>
+        ) : (
+          <>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit("queue");
+                }
+              }}
+              placeholder={isDriver ? "Steer the agent…" : "Suggest to the driver…"}
+            />
+            <button onClick={() => submit("queue")}>Send</button>
+            {controls.canInterrupt && (
+              <button
+                className="danger"
+                onClick={() => submit("interrupt")}
+                title="Cancel the running turn and send now"
+              >
+                Interrupt
+              </button>
+            )}
+          </>
+        )}
       </footer>
     </main>
+  );
+}
+
+function ParticipantChip({
+  participant,
+  isWheelHolder,
+  onHandoff,
+}: {
+  participant: RosterEntry;
+  isWheelHolder: boolean;
+  onHandoff?: ((toParticipantId: string) => void) | undefined;
+}): ReactElement {
+  const label = `${isWheelHolder ? "🛞 " : ""}${participant.displayName}`;
+  if (onHandoff === undefined) {
+    return (
+      <span className={`chip chip-${participant.role}`} title={participant.role}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <button
+      className={`chip chip-${participant.role} chip-handoff`}
+      title={`Hand the wheel to ${participant.displayName}`}
+      onClick={() => onHandoff(participant.id)}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -122,10 +168,10 @@ function TimelineRow({ item }: { item: TimelineItem }): ReactElement {
       return <div className="row agent">{item.text}</div>;
     case "human":
       return (
-        <div className={`row human human-${item.role}`}>
+        <div className={`row human ${item.steering ? "human-steering" : "human-suggestion"}`}>
           <span className="author">
             {item.authorId}
-            {item.role !== "driver" ? " (suggestion)" : ""}
+            {item.steering ? "" : " (suggestion)"}
             {item.delivery === "interrupt" ? " ⚡" : ""}
           </span>
           {item.text}

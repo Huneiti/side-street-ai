@@ -138,6 +138,19 @@ select {
   color: var(--dim);
 }
 
+/* The Driver's roster chips are buttons: click one to hand it the wheel. */
+button.chip-handoff {
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+  padding: 3px 10px;
+}
+
+button.chip-handoff:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .timeline {
   overflow-y: auto;
   padding: 16px;
@@ -172,7 +185,9 @@ select {
   margin-bottom: 3px;
 }
 
-.row.human-navigator {
+/* Follows the wheel, not the join-time role: a Navigator who holds the wheel
+   is steering, and a Driver who does not is only suggesting. */
+.row.human-suggestion {
   opacity: 0.85;
   border-style: dashed;
 }
@@ -268,4 +283,11 @@ select {
 
 .session footer input {
   flex: 1;
+}
+
+.read-only {
+  flex: 1;
+  align-self: center;
+  color: var(--dim);
+  font-size: 13px;
 }

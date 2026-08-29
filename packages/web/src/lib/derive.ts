@@ -14,6 +14,12 @@ export type TimelineItem =
       key: string;
       authorId: string;
       role: Role | "unknown";
+      /**
+       * The author held the wheel when this landed. Authority follows the
+       * wheel, not the join-time role, so this — not `role` — decides whether
+       * a message was an instruction or a suggestion.
+       */
+      steering: boolean;
       text: string;
       delivery: "queue" | "interrupt";
     }
@@ -69,6 +75,7 @@ export function deriveSession(events: readonly SignedEvent[]): DerivedSession {
           key,
           authorId: event.authorId,
           role: roles.get(event.authorId) ?? "unknown",
+          steering: event.authorId === driverId,
           text: body.payload.text,
           delivery: body.payload.delivery,
         });

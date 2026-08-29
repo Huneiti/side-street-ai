@@ -90,7 +90,48 @@ describe("deriveSession", () => {
     expect(roster.map((r) => r.id)).toEqual(["bob"]);
     expect(driverId).toBeNull(); // driver left, wheel freed
     const human = timeline.find((t) => t.kind === "human");
-    expect(human).toMatchObject({ authorId: "bob", role: "navigator" });
+    expect(human).toMatchObject({ authorId: "bob", role: "navigator", steering: false });
+  });
+
+  it("marks a message as steering by the wheel, not by the join-time role", async () => {
+    const events = await log([
+      {
+        authorId: "alice",
+        body: {
+          type: "participant_joined",
+          payload: { participantId: "alice", displayName: "Alice", role: "driver" },
+        },
+      },
+      {
+        authorId: "bob",
+        body: {
+          type: "participant_joined",
+          payload: { participantId: "bob", displayName: "Bob", role: "navigator" },
+        },
+      },
+      {
+        authorId: "alice",
+        body: {
+          type: "control_handoff",
+          payload: { fromParticipantId: "alice", toParticipantId: "bob" },
+        },
+      },
+      {
+        authorId: "bob",
+        body: { type: "human_message", payload: { text: "revert it", delivery: "queue" } },
+      },
+      {
+        authorId: "alice",
+        body: { type: "human_message", payload: { text: "or maybe patch it", delivery: "queue" } },
+      },
+    ]);
+    const humans = deriveSession(events).timeline.filter((t) => t.kind === "human");
+    // The Navigator holds the wheel, so they are steering and the Driver-role
+    // participant who handed it over is the one making suggestions.
+    expect(humans).toMatchObject([
+      { authorId: "bob", role: "navigator", steering: true },
+      { authorId: "alice", role: "driver", steering: false },
+    ]);
   });
 
   it("surfaces non-natural turn ends and hides end_turn noise", async () => {

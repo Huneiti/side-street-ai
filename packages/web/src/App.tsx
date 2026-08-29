@@ -115,9 +115,9 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
     setNotice(null);
     clientRef.current?.steer(text, delivery);
   }, []);
-  const takeWheel = useCallback(() => {
+  const handoff = useCallback((toParticipantId: string) => {
     setNotice(null);
-    clientRef.current?.takeWheel();
+    clientRef.current?.takeWheel(toParticipantId);
   }, []);
   const decide = useCallback((requestId: string, outcome: PermissionOutcome) => {
     setNotice(null);
@@ -130,8 +130,9 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
       status={status}
       notice={notice}
       self={details.participantId}
+      selfRole={details.role}
       onSteer={steer}
-      onTakeWheel={takeWheel}
+      onHandoff={handoff}
       onDecide={decide}
       onLeave={onLeave}
     />
