@@ -69,9 +69,10 @@ Roles: **Driver** (steers, interrupts, approves tools — at most one holds the 
    becomes the next prompt. Duplicate interrupts while a cancel is in flight do not send a
    second cancel.
 7. **Take the wheel**: only the current Driver hands off; a driverless wheel can be claimed
-   by any non-Observer. The Driver leaving frees the wheel. Every transfer is logged as
-   `control_handoff`; a refused claim goes back to the requester alone as
-   `handoff_rejected` and never touches the log.
+   by any non-Observer, and only a non-Observer can receive it — authority follows the
+   wheel, so an Observer holding it would be a read-only role approving tool calls. The
+   Driver leaving frees the wheel. Every transfer is logged as `control_handoff`; a refused
+   claim goes back to the requester alone as `handoff_rejected` and never touches the log.
 
 ## Approvals and idempotency
 

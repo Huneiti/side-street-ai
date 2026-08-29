@@ -158,15 +158,23 @@ export class SteeringController {
   /**
    * Explicit control handoff ("take the wheel"). The current Driver hands
    * off, or anyone with a steering-capable role claims a driverless wheel.
+   *
+   * The recipient is a Participant, not a bare id, because the wheel carries
+   * authority: whoever holds it approves side-effecting tools. An Observer at
+   * the wheel would be a read-only role deciding tool calls, so the target's
+   * role is checked as strictly as the requester's.
    */
-  handoff(requestedBy: Participant, toParticipantId: string): HandoffResult {
+  handoff(requestedBy: Participant, to: Participant): HandoffResult {
     if (this.driverId !== null && requestedBy.id !== this.driverId) {
       return { ok: false, reason: "only the current driver may hand off control" };
     }
     if (this.driverId === null && !canSuggest(requestedBy.role)) {
       return { ok: false, reason: "observers cannot claim the wheel" };
     }
-    this.driverId = toParticipantId;
+    if (!canSuggest(to.role)) {
+      return { ok: false, reason: "observers cannot hold the wheel" };
+    }
+    this.driverId = to.id;
     return { ok: true };
   }
 

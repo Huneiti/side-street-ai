@@ -12,7 +12,8 @@ function msg(text: string, delivery: "queue" | "interrupt" = "queue") {
 
 function controllerWithDriver(id = "alice"): SteeringController {
   const c = new SteeringController();
-  expect(c.handoff({ id, role: "driver" }, id)).toEqual({ ok: true });
+  const driver: Participant = { id, role: "driver" };
+  expect(c.handoff(driver, driver)).toEqual({ ok: true });
   return c;
 }
 
@@ -161,21 +162,32 @@ describe("boundaries and turn end", () => {
 describe("take the wheel", () => {
   it("lets only the current driver hand off", () => {
     const c = controllerWithDriver("alice");
-    expect(c.handoff(bob, "bob")).toEqual({
+    expect(c.handoff(bob, bob)).toEqual({
       ok: false,
       reason: "only the current driver may hand off control",
     });
-    expect(c.handoff(alice, "bob")).toEqual({ ok: true });
+    expect(c.handoff(alice, bob)).toEqual({ ok: true });
     expect(c.state.driverId).toBe("bob");
   });
 
   it("lets a navigator claim a driverless wheel but never an observer", () => {
     const c = new SteeringController();
-    expect(c.handoff(carol, "carol")).toEqual({
+    expect(c.handoff(carol, carol)).toEqual({
       ok: false,
       reason: "observers cannot claim the wheel",
     });
-    expect(c.handoff(bob, "bob")).toEqual({ ok: true });
+    expect(c.handoff(bob, bob)).toEqual({ ok: true });
+  });
+
+  it("refuses to hand the wheel to an observer", () => {
+    // Authority follows the wheel, so a wheel in observer hands would be an
+    // Observer who can approve side-effecting tools. Read-only means read-only.
+    const c = controllerWithDriver("alice");
+    expect(c.handoff(alice, carol)).toEqual({
+      ok: false,
+      reason: "observers cannot hold the wheel",
+    });
+    expect(c.state.driverId).toBe("alice");
   });
 
   it("frees the wheel when the driver leaves, and ignores non-driver departures", () => {
@@ -192,7 +204,7 @@ describe("authority follows the wheel (exit-benchmark regression)", () => {
   function navigatorAtTheWheel(): SteeringController {
     const c = controllerWithDriver("alice");
     c.releaseWheel("alice");
-    expect(c.handoff(bob, "bob")).toEqual({ ok: true });
+    expect(c.handoff(bob, bob)).toEqual({ ok: true });
     return c;
   }
 

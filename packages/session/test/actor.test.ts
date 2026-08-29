@@ -220,6 +220,22 @@ describe("roster and the wheel", () => {
     ]);
   });
 
+  it("refuses to hand the wheel to an observer", async () => {
+    // The wheel carries approval authority, so handing it to a read-only role
+    // would let an Observer decide side-effecting tool calls.
+    const { store, broadcaster, actor } = await seededSession();
+    const before = store.events.length;
+    await actor.handoff("alice", "carol");
+    expect(actor.driverId).toBe("alice");
+    expect(store.events.length).toBe(before);
+    expect(broadcaster.privates).toEqual([
+      {
+        participantId: "alice",
+        message: { kind: "handoff_rejected", reason: "observers cannot hold the wheel" },
+      },
+    ]);
+  });
+
   it("tells an observer why a driverless wheel is not theirs to claim", async () => {
     const { broadcaster, actor } = await seededSession();
     await actor.leave("alice");

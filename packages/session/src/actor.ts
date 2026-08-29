@@ -209,7 +209,7 @@ export class SessionActor {
     const previousDriver = this.steering.state.driverId;
     const result = this.steering.handoff(
       { id: requester.id, role: requester.role },
-      toParticipantId,
+      { id: target.id, role: target.role },
     );
     if (!result.ok) {
       reject(result.reason);
