@@ -8,7 +8,13 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { appendEvent, type EventBody, type Role, type SignedEvent } from "@side-street/core";
+import {
+  appendEvent,
+  type EventBody,
+  type PermissionOption,
+  type Role,
+  type SignedEvent,
+} from "@side-street/core";
 import { SessionView } from "../src/SessionView.js";
 
 async function log(entries: Array<{ authorId: string; body: EventBody }>): Promise<SignedEvent[]> {
@@ -62,6 +68,28 @@ function render(events: SignedEvent[], self: string, selfRole: Role): string {
   );
 }
 
+async function withPermission(options: PermissionOption[]): Promise<SignedEvent[]> {
+  const events = await seed();
+  events.push(
+    await appendEvent(events, {
+      authorId: "agent",
+      ts: events.length,
+      body: {
+        type: "permission_request",
+        payload: {
+          requestId: "perm-1",
+          toolCallId: "tool-1",
+          title: "Publish the release",
+          options,
+          stepId: "0123456789abcdef",
+          priorAttempts: 0,
+        },
+      },
+    }),
+  );
+  return events;
+}
+
 describe("the footer an Observer sees", () => {
   it("offers no steering affordance at all", async () => {
     const markup = render(await seed(), "carol", "observer");
@@ -100,5 +128,31 @@ describe("handing the wheel from the roster", () => {
   it("leaves every chip inert for a non-Driver", async () => {
     const markup = render(await seed(), "bob", "navigator");
     expect(markup).not.toContain("Hand the wheel to");
+  });
+});
+
+describe("permission controls", () => {
+  it("does not append a second Deny when the agent offers a reject option", async () => {
+    const markup = render(
+      await withPermission([
+        { optionId: "allow", name: "Allow once", kind: "allow_once" },
+        { optionId: "deny", name: "Deny", kind: "reject_once" },
+      ]),
+      "alice",
+      "driver",
+    );
+
+    expect(markup).toContain('class="danger">Deny</button>');
+    expect(markup).not.toContain('class="ghost">Deny</button>');
+  });
+
+  it("keeps the cancellation Deny when the agent offers no reject option", async () => {
+    const markup = render(
+      await withPermission([{ optionId: "allow", name: "Allow once", kind: "allow_once" }]),
+      "alice",
+      "driver",
+    );
+
+    expect(markup).toContain('class="ghost">Deny</button>');
   });
 });
