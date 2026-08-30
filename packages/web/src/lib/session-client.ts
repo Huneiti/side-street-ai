@@ -21,10 +21,19 @@ import {
   type Role,
   type ServerFrame,
   type SignedEvent,
+  type VerifyResult,
 } from "@side-street/core";
 import { z } from "zod";
 
 const replaySchema = z.object({ events: z.array(z.unknown()) });
+const verifyResultSchema = z.discriminatedUnion("valid", [
+  z.object({ valid: z.literal(true), length: z.number().int().nonnegative() }),
+  z.object({
+    valid: z.literal(false),
+    firstInvalidSeq: z.number().int().nonnegative(),
+    reason: z.string().min(1),
+  }),
+]);
 
 /**
  * Backoff ladder between reconnect attempts, in ms; the last step repeats.
@@ -164,6 +173,18 @@ export class SessionClient {
     }
     const parsed = replaySchema.parse(await response.json());
     return toMarkdown(parsed.events as SignedEvent[]);
+  }
+
+  /** Ask the server to verify the stored chain; redacted viewer events cannot be re-hashed locally. */
+  async verify(): Promise<VerifyResult> {
+    const fetchFn = this.options.fetchFn ?? ((url: string) => fetch(url));
+    const response = await fetchFn(
+      `${this.options.baseUrl}/session/${this.options.sessionId}/verify`,
+    );
+    if (!response.ok) {
+      throw new Error("verification request failed");
+    }
+    return verifyResultSchema.parse(await response.json());
   }
 
   private send(frame: unknown): void {

@@ -18,6 +18,7 @@ export function SessionView({
   onSteer,
   onHandoff,
   onDecide,
+  onVerify,
   onExport,
   onLeave,
 }: {
@@ -30,6 +31,7 @@ export function SessionView({
   onSteer(text: string, delivery: "queue" | "interrupt"): void;
   onHandoff(toParticipantId: string): void;
   onDecide(requestId: string, outcome: PermissionOutcome): void;
+  onVerify(): void;
   onExport(): void;
   onLeave(): void;
 }): ReactElement {
@@ -70,6 +72,9 @@ export function SessionView({
               onHandoff={canHandWheelTo(self, isDriver, p) ? onHandoff : undefined}
             />
           ))}
+          <button className="ghost" onClick={onVerify} title="Verify the stored hash chain">
+            Verify log
+          </button>
           <button className="ghost" onClick={onExport} title="Download the attributed timeline">
             Export
           </button>

@@ -50,6 +50,7 @@ interface Harness {
   rejections: Array<{ messageId: string; reason: string }>;
   handoffRejections: string[];
   fetches: string[];
+  resolveFetch(value: unknown): void;
   resolveReplay(events: SignedEvent[]): void;
 }
 
@@ -60,7 +61,7 @@ function harness(): Harness {
   const rejections: Array<{ messageId: string; reason: string }> = [];
   const handoffRejections: string[] = [];
   const fetches: string[] = [];
-  let pendingReplay: ((events: SignedEvent[]) => void) | undefined;
+  let pendingFetch: ((value: unknown) => void) | undefined;
 
   const client = new SessionClient({
     baseUrl: "http://worker.test",
@@ -80,7 +81,7 @@ function harness(): Harness {
     fetchFn: (url) => {
       fetches.push(url);
       return new Promise((resolve) => {
-        pendingReplay = (events) => resolve({ ok: true, json: () => Promise.resolve({ events }) });
+        pendingFetch = (value) => resolve({ ok: true, json: () => Promise.resolve(value) });
       });
     },
   });
@@ -96,7 +97,8 @@ function harness(): Harness {
     rejections,
     handoffRejections,
     fetches,
-    resolveReplay: (events) => pendingReplay?.(events),
+    resolveFetch: (value) => pendingFetch?.(value),
+    resolveReplay: (events) => pendingFetch?.({ events }),
   };
 }
 
@@ -172,6 +174,25 @@ describe("SessionClient", () => {
     expect(h.fetches).toEqual(["http://worker.test/session/s1/events?from=0"]);
     h.resolveReplay(log);
     expect(await pending).toContain("**Events:** 2 (seq 0–1)");
+  });
+
+  it("asks the server to verify the stored hash chain", async () => {
+    const h = harness();
+    const pending = h.client.verify();
+    expect(h.fetches).toEqual(["http://worker.test/session/s1/verify"]);
+    h.resolveFetch({ valid: true, length: 14 });
+    await expect(pending).resolves.toEqual({ valid: true, length: 14 });
+  });
+
+  it("preserves the server's first invalid event and reason", async () => {
+    const h = harness();
+    const pending = h.client.verify();
+    h.resolveFetch({ valid: false, firstInvalidSeq: 7, reason: "hash mismatch" });
+    await expect(pending).resolves.toEqual({
+      valid: false,
+      firstInvalidSeq: 7,
+      reason: "hash mismatch",
+    });
   });
 
   it("sends a decide frame for a permission decision", () => {
