@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { roleSchema, type PermissionOutcome, type Role, type SignedEvent } from "@side-street/core";
 import { SessionClient, type SessionStatus } from "./lib/session-client.js";
+import { joinDefaultsFromUrl, type JoinDefaults } from "./lib/join-url.js";
 import { SessionView } from "./SessionView.js";
 
 interface JoinDetails {
@@ -13,17 +14,23 @@ interface JoinDetails {
 export function App(): ReactElement {
   const [details, setDetails] = useState<JoinDetails | null>(null);
   return details === null ? (
-    <JoinForm onJoin={setDetails} />
+    <JoinForm defaults={joinDefaultsFromUrl(window.location.href)} onJoin={setDetails} />
   ) : (
     <Session details={details} onLeave={() => setDetails(null)} />
   );
 }
 
-function JoinForm({ onJoin }: { onJoin(details: JoinDetails): void }): ReactElement {
-  const [baseUrl, setBaseUrl] = useState("http://localhost:8787");
-  const [sessionId, setSessionId] = useState("demo");
+function JoinForm({
+  defaults,
+  onJoin,
+}: {
+  defaults: JoinDefaults;
+  onJoin(details: JoinDetails): void;
+}): ReactElement {
+  const [baseUrl, setBaseUrl] = useState(defaults.baseUrl);
+  const [sessionId, setSessionId] = useState(defaults.sessionId);
   const [participantId, setParticipantId] = useState("");
-  const [role, setRole] = useState<Role>("observer");
+  const [role, setRole] = useState<Role>(defaults.role);
 
   return (
     <main className="join">
