@@ -70,6 +70,52 @@ describe("transcript header", () => {
     expect(toMarkdown(await log([started]))).toContain("**Agent:** `claude-code`");
   });
 
+  it("opens with the incident the session was called for", async () => {
+    const events = await log([
+      {
+        authorId: "sentry",
+        body: {
+          type: "incident_linked",
+          payload: {
+            source: "sentry",
+            reference: "4417",
+            title: "TypeError in processRefund",
+            url: "https://sentry.io/issues/4417/",
+            level: "error",
+            location: "checkout/payments",
+            rule: "Checkout errors spike",
+            environment: "production",
+            release: "payments@2026.8.29",
+          },
+        },
+      },
+      started,
+    ]);
+    const md = toMarkdown(events);
+    expect(md).toContain("## Incident");
+    expect(md).toContain("[TypeError in processRefund](https://sentry.io/issues/4417/)");
+    expect(md).toContain("- **Release:** `payments@2026.8.29`");
+    expect(md).toContain("- **Where:** `checkout/payments`");
+    // The incident block comes before the roster and the timeline.
+    expect(md.indexOf("## Incident")).toBeLessThan(md.indexOf("## Timeline"));
+  });
+
+  it("omits incident fields the alert did not carry", async () => {
+    const events = await log([
+      {
+        authorId: "sentry",
+        body: {
+          type: "incident_linked",
+          payload: { source: "sentry", reference: "1", title: "Something broke" },
+        },
+      },
+    ]);
+    const md = toMarkdown(events);
+    expect(md).toContain("## Incident");
+    expect(md).not.toContain("**Release:**");
+    expect(md).not.toContain("**Environment:**");
+  });
+
   it("says so plainly when there is nothing to show", async () => {
     expect(toMarkdown([])).toContain("**Events:** none");
   });

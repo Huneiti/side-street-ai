@@ -25,6 +25,19 @@
 import type { SignedEvent } from "./events.js";
 import type { Role } from "./roles.js";
 
+/** The `incident_linked` payload, as the header renders it. */
+interface IncidentLine {
+  source: string;
+  reference: string;
+  title: string;
+  url?: string | undefined;
+  level?: string | undefined;
+  location?: string | undefined;
+  rule?: string | undefined;
+  environment?: string | undefined;
+  release?: string | undefined;
+}
+
 export interface TranscriptOptions {
   /**
    * Longest tool output reproduced verbatim, in characters; the rest is
@@ -51,6 +64,8 @@ export function toMarkdown(
   let started: { sessionId: string; agent: string; sandboxProvider: string } | undefined;
   /** What actually attached, if anything did — see `agent_attached`. */
   let attached: { agent: string; version?: string | undefined } | undefined;
+  /** The alert this session was opened for, if an integration linked one. */
+  let incident: IncidentLine | undefined;
   let driverId: string | null = null;
   /** Index into `entries` of the open agent paragraph, so chunks merge. */
   let openAgentText: number | undefined;
@@ -69,6 +84,14 @@ export function toMarkdown(
         entries.push(
           `${at} **system** · session started — agent ${code(body.payload.agent)}, sandbox ${code(
             body.payload.sandboxProvider,
+          )}`,
+        );
+        break;
+      case "incident_linked":
+        incident = { ...body.payload };
+        entries.push(
+          `${at} **${escape(body.payload.source)}** · 🚨 incident linked: ${escape(
+            body.payload.title,
           )}`,
         );
         break;
@@ -222,7 +245,7 @@ export function toMarkdown(
   }
 
   return [
-    header(events, started, attached, roster),
+    header(events, started, attached, incident, roster),
     "## Timeline",
     "",
     entries.join("\n\n"),
@@ -234,6 +257,7 @@ function header(
   events: readonly SignedEvent[],
   started: { sessionId: string; agent: string; sandboxProvider: string } | undefined,
   attached: { agent: string; version?: string | undefined } | undefined,
+  incident: IncidentLine | undefined,
   roster: Map<string, { displayName: string; role: Role }>,
 ): string {
   const first = events[0];
@@ -266,6 +290,33 @@ function header(
     "before relying on it.",
     "",
   );
+  if (incident !== undefined) {
+    // The reason the session exists goes above the roster: a postmortem
+    // should open with the thing being post-mortemed.
+    const link =
+      incident.url === undefined
+        ? escape(incident.title)
+        : `[${escape(incident.title)}](${incident.url})`;
+    lines.push(
+      "## Incident",
+      "",
+      `**${escape(incident.source)}** · ${link}`,
+      "",
+      ...(
+        [
+          ["Reference", incident.reference],
+          ["Level", incident.level],
+          ["Where", incident.location],
+          ["Rule", incident.rule],
+          ["Environment", incident.environment],
+          ["Release", incident.release],
+        ] as const
+      )
+        .filter(([, value]) => value !== undefined)
+        .map(([label, value]) => `- **${label}:** ${code(String(value))}`),
+      "",
+    );
+  }
   if (roster.size > 0) {
     lines.push(
       "## Participants",

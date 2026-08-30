@@ -114,6 +114,24 @@ export const agentAttachParamsSchema = z.object({
 });
 export type AgentAttachParams = z.infer<typeof agentAttachParamsSchema>;
 
+/**
+ * Incident context written into a session by an integration. Mirrors the
+ * `incident_linked` event body: it crosses a trust boundary (the Worker's
+ * webhook handler to the Durable Object), so it is parsed, not cast.
+ */
+export const incidentContextSchema = z.object({
+  source: z.string().min(1).max(64),
+  reference: z.string().min(1).max(256),
+  title: z.string().min(1).max(512),
+  url: z.string().max(2048).optional(),
+  level: z.string().max(64).optional(),
+  location: z.string().max(512).optional(),
+  rule: z.string().max(256).optional(),
+  environment: z.string().max(128).optional(),
+  release: z.string().max(256).optional(),
+});
+export type IncidentContext = z.infer<typeof incidentContextSchema>;
+
 export const joinParamsSchema = z.object({
   participantId: z.string().min(1),
   displayName: z.string().min(1),

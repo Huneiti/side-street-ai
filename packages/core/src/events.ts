@@ -121,6 +121,36 @@ export const eventBodySchema = z.discriminatedUnion("type", [
       version: z.string().min(1).max(64).optional(),
     }),
   }),
+  /**
+   * Why this session exists: the alert that opened it. Written before anyone
+   * joins, so whoever arrives first reads the incident rather than asking what
+   * they are looking at, and so the exported postmortem opens with the thing
+   * being post-mortemed.
+   *
+   * Deliberately not Sentry-shaped. `source` names the system, `reference` is
+   * its id for the thing, and the rest is what any alerting system has: what
+   * broke, where, how badly, and a link back.
+   */
+  z.object({
+    type: z.literal("incident_linked"),
+    payload: z.object({
+      source: z.string().min(1).max(64),
+      /** The alerting system's id for the issue, so repeat alerts are matchable. */
+      reference: z.string().min(1).max(256),
+      title: z.string().min(1).max(512),
+      /** Where a human goes to see it in the system that raised it. */
+      url: z.string().max(2048).optional(),
+      /** Severity as the source words it — "error", "critical", "P1". */
+      level: z.string().max(64).optional(),
+      /** Where it broke, as the source words it: a stack culprit, a service. */
+      location: z.string().max(512).optional(),
+      /** The alert rule that fired, when the source names one. */
+      rule: z.string().max(256).optional(),
+      environment: z.string().max(128).optional(),
+      /** The deploy in play — the first thing an on-call asks about. */
+      release: z.string().max(256).optional(),
+    }),
+  }),
   z.object({ type: z.literal("participant_joined"), payload: rosterEntrySchema }),
   z.object({
     type: z.literal("participant_left"),

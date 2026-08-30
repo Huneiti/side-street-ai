@@ -11,6 +11,7 @@ import {
   stepIdFor,
   type EventBody,
   type IdempotencyKey,
+  type IncidentContext,
   type PermissionOption,
   type PermissionOutcome,
   type PermissionRequestPayload,
@@ -225,6 +226,20 @@ export class SessionActor {
       type: "control_handoff",
       payload: { fromParticipantId: previousDriver ?? requestedById, toParticipantId },
     });
+  }
+
+  /**
+   * An integration linked an incident to this session — the alert that opened
+   * it. Attributed to the integration, never to a person: a webhook is not a
+   * participant, and nothing it writes should read like something a human
+   * said.
+   * ponytail: repeat alerts for the same issue each append. A duplicate line
+   * is noise, not corruption, and "this fired again" is usually the fact you
+   * want; dedupe on the source's event id if a retry storm ever proves
+   * otherwise.
+   */
+  async onIncidentLinked(context: IncidentContext): Promise<void> {
+    await this.append(context.source, { type: "incident_linked", payload: context });
   }
 
   /** An update streamed from the agent (already translated to an event body). */

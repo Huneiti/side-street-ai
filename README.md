@@ -48,16 +48,17 @@ around them.
 
 ## Documentation
 
-| Doc                                    | What it is                                                                          |
-| -------------------------------------- | ----------------------------------------------------------------------------------- |
-| [`docs/PLAN.md`](docs/PLAN.md)         | The project plan — phases, architecture decisions, benchmarks. The source of truth. |
-| [`docs/protocol.md`](docs/protocol.md) | The wire spec: event log, steering semantics, approvals, replay, transport.         |
-| [`docs/agents.md`](docs/agents.md)     | Running a session against a different backing agent, and authenticating it.         |
-| [`docs/ops.md`](docs/ops.md)           | Operating a deployment: structured logs, what they never carry, per-session usage.  |
-| [`docs/adr/`](docs/adr/)               | Architecture decision records — what we chose, and what it cost.                    |
-| [`docs/benchmarks/`](docs/benchmarks/) | Runbooks for the phase exit benchmarks.                                             |
-| [`docs/research/`](docs/research/)     | The research foundation the plan is built on.                                       |
-| [`CLAUDE.md`](CLAUDE.md)               | The working agreement all contributors (human and agent) follow.                    |
+| Doc                                                          | What it is                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [`docs/PLAN.md`](docs/PLAN.md)                               | The project plan — phases, architecture decisions, benchmarks. The source of truth. |
+| [`docs/protocol.md`](docs/protocol.md)                       | The wire spec: event log, steering semantics, approvals, replay, transport.         |
+| [`docs/agents.md`](docs/agents.md)                           | Running a session against a different backing agent, and authenticating it.         |
+| [`docs/ops.md`](docs/ops.md)                                 | Operating a deployment: structured logs, what they never carry, per-session usage.  |
+| [`docs/integrations/sentry.md`](docs/integrations/sentry.md) | Sentry alert to a shared session already open on the problem.                       |
+| [`docs/adr/`](docs/adr/)                                     | Architecture decision records — what we chose, and what it cost.                    |
+| [`docs/benchmarks/`](docs/benchmarks/)                       | Runbooks for the phase exit benchmarks.                                             |
+| [`docs/research/`](docs/research/)                           | The research foundation the plan is built on.                                       |
+| [`CLAUDE.md`](CLAUDE.md)                                     | The working agreement all contributors (human and agent) follow.                    |
 
 ## License
 

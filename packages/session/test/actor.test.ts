@@ -179,6 +179,37 @@ describe("steering through the actor", () => {
   });
 });
 
+describe("an incident opening a session", () => {
+  it("attributes the context to the integration, never to a person", async () => {
+    const { store, actor } = await seededSession();
+    await actor.onIncidentLinked({
+      source: "sentry",
+      reference: "4417",
+      title: "TypeError in processRefund",
+      level: "error",
+    });
+    const event = store.events.at(-1);
+    expect(event?.authorId).toBe("sentry");
+    expect(event?.body).toEqual({
+      type: "incident_linked",
+      payload: {
+        source: "sentry",
+        reference: "4417",
+        title: "TypeError in processRefund",
+        level: "error",
+      },
+    });
+  });
+
+  it("records a repeat alert as its own fact", async () => {
+    const { store, actor } = await seededSession();
+    const context = { source: "sentry", reference: "4417", title: "TypeError" };
+    await actor.onIncidentLinked(context);
+    await actor.onIncidentLinked(context);
+    expect(store.events.filter((e) => e.body.type === "incident_linked")).toHaveLength(2);
+  });
+});
+
 describe("an agent attaching", () => {
   it("logs what the bridge declared, attributed to the agent", async () => {
     const { store, actor } = await seededSession();

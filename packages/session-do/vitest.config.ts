@@ -13,6 +13,10 @@ export default defineWorkersConfig({
         isolatedStorage: false,
         singleWorker: true,
         wrangler: { configPath: "./wrangler.jsonc" },
+        // The Sentry integration's client secret is a deploy-time secret, so
+        // it is absent from wrangler.jsonc by design. Tests supply an obvious
+        // fake: what they exercise is the HMAC, not the value.
+        miniflare: { bindings: { SENTRY_CLIENT_SECRET: "not-a-real-client-secret" } },
       },
     },
   },

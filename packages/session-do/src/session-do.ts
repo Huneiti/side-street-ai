@@ -13,6 +13,7 @@ import {
   summarizeUsage,
   verifyChain,
   agentAttachParamsSchema,
+  incidentContextSchema,
   viewerFrameSchema,
   type AgentServerFrame,
   type Role,
@@ -32,6 +33,12 @@ import {
 
 export interface Env {
   SESSIONS: DurableObjectNamespace<SessionDurableObject>;
+  /**
+   * Sentry integration Client Secret, set with `wrangler secret put`. Absent
+   * means the integration is off: the webhook refuses rather than accepting
+   * unverified callers.
+   */
+  SENTRY_CLIENT_SECRET?: string;
 }
 
 type Attachment = { kind: "viewer"; participantId: string; role: Role } | { kind: "agent" };
@@ -180,6 +187,23 @@ export class SessionDurableObject extends DurableObject<Env> {
       // so nothing here needs the redaction pass.
       const summary = summarizeUsage(await this.actor.replayFrom(0));
       return Response.json(summary, { headers: { "Access-Control-Allow-Origin": "*" } });
+    }
+    if (url.pathname.endsWith("/incident")) {
+      // Not routable from outside: the Worker's public path list omits it, so
+      // only a request this Worker built — after verifying a webhook
+      // signature — can reach here and write incident context into the log.
+      const body = incidentContextSchema.safeParse(await request.json().catch(() => undefined));
+      if (!body.success) {
+        return Response.json({ error: "invalid incident context" }, { status: 400 });
+      }
+      await this.ensureStarted();
+      await this.actor.onIncidentLinked(body.data);
+      await this.persistState();
+      this.log.info("incident.linked", {
+        source: body.data.source,
+        reference: body.data.reference,
+      });
+      return Response.json({ ok: true });
     }
     if (url.pathname.endsWith("/verify")) {
       // Tamper-evidence surface: re-verifies the full chain server-side so

@@ -101,6 +101,13 @@ export function deriveSession(events: readonly SignedEvent[]): DerivedSession {
         }
         break;
       }
+      case "incident_linked":
+        timeline.push({
+          kind: "system",
+          key,
+          text: `🚨 ${body.payload.source} incident: ${body.payload.title}`,
+        });
+        break;
       case "agent_attached":
         timeline.push({
           kind: "system",
