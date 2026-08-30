@@ -241,6 +241,37 @@ describe("authority under injection", () => {
     ]);
   });
 
+  it("cannot be bricked by a sandbox whose self-declaration defeats redaction", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor(isWelcome);
+
+    // Redaction replaces a short secret with a longer placeholder, so a
+    // declaration built from assignment-shaped fragments grows when redacted.
+    // Everything a viewer receives goes through that pass, so an event that
+    // could not be redacted-and-parsed would take the session's outbound side
+    // down — live and on every replay after it.
+    const hostile = "KEY=v ".repeat(21).trim();
+    await connect(`/session/${sessionId}/agent?agent=${encodeURIComponent(hostile)}`);
+    const attached = (await alice.waitFor(isEventOf("agent_attached")))["event"] as SignedEvent;
+    expect(JSON.stringify(attached)).not.toContain("KEY=v");
+
+    // The session still works afterwards: broadcast, replay and the chain.
+    alice.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "alice" }));
+    alice.ws.send(
+      JSON.stringify({ type: "steer", id: "m1", text: "still here", delivery: "queue" }),
+    );
+    await alice.waitFor(isEventOf("human_message"));
+
+    const replay = await SELF.fetch(`${BASE}/session/${sessionId}/events?from=0`);
+    expect(replay.status).toBe(200);
+    const { events } = (await replay.json()) as { events: SignedEvent[] };
+    expect(events.map((e) => e.body.type)).toContain("human_message");
+
+    const verify = await SELF.fetch(`${BASE}/session/${sessionId}/verify`);
+    expect(await verify.json()).toMatchObject({ valid: true });
+  });
+
   it("never lets the wheel — and with it tool approval — reach an Observer", async () => {
     const sessionId = freshSession();
     const agent = await connect(`/session/${sessionId}/agent`);

@@ -104,3 +104,47 @@ describe("redactEventForRole", () => {
     expect(redactAll.redactsFor("driver")).toBe(true);
   });
 });
+
+describe("redaction cannot break the session it protects", () => {
+  /**
+   * A placeholder is longer than a short secret, so redaction can push a
+   * string past a schema maximum. This runs on the broadcast *and* replay
+   * paths, so an event that could not be redacted-and-parsed would take the
+   * session's whole outbound side with it — on every reconnect, permanently.
+   */
+  it("collapses an overflowing field instead of throwing", async () => {
+    // Within the 128 the agent socket accepts, but every `KEY=v` expands to a
+    // placeholder five times its length.
+    const agent = "KEY=v ".repeat(21).trim();
+    expect(agent.length).toBeLessThanOrEqual(128);
+    const e = await event({ type: "agent_attached", payload: { agent } });
+
+    const redacted = redactEvent(e);
+    const out = (redacted.body as { payload: { agent: string } }).payload.agent;
+    expect(out).toBe("[redacted:secret]");
+    expect(out.length).toBeLessThanOrEqual(128);
+  });
+
+  it("collapses only the strings it actually changed", async () => {
+    const title = "KEY=v ".repeat(90).trim();
+    const e = await event({
+      type: "incident_linked",
+      payload: { source: "sentry", reference: "4417", title, level: "error" },
+    });
+
+    const payload = (redactEvent(e).body as { payload: Record<string, string> }).payload;
+    expect(payload["title"]).toBe("[redacted:secret]");
+    // Untouched fields keep their values — collapse is per string, not per event.
+    expect(payload["source"]).toBe("sentry");
+    expect(payload["reference"]).toBe("4417");
+    expect(payload["level"]).toBe("error");
+  });
+
+  it("still removes the secret when it collapses", async () => {
+    const secret = "s1de-street-session-cred-9f2";
+    const agent = `${secret} `.repeat(5).trim();
+    const e = await event({ type: "agent_attached", payload: { agent } });
+    const redacted = redactEvent(e, [secret]);
+    expect(JSON.stringify(redacted)).not.toContain(secret);
+  });
+});

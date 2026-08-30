@@ -50,17 +50,22 @@ function redactValue(
   value: unknown,
   knownSecrets: readonly string[],
   patterns: readonly SecretPattern[],
+  collapse = false,
 ): unknown {
   if (typeof value === "string") {
-    return redactString(value, knownSecrets, patterns);
+    const redacted = redactString(value, knownSecrets, patterns);
+    // Collapse mode: a string that had anything redacted out of it becomes a
+    // single placeholder instead of a rewrite. Same secrets removed, bounded
+    // length. See `redactEvent`.
+    return collapse && redacted !== value ? placeholder(KNOWN_SECRET_LABEL) : redacted;
   }
   if (Array.isArray(value)) {
-    return value.map((item) => redactValue(item, knownSecrets, patterns));
+    return value.map((item) => redactValue(item, knownSecrets, patterns, collapse));
   }
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      out[key] = redactValue(item, knownSecrets, patterns);
+      out[key] = redactValue(item, knownSecrets, patterns, collapse);
     }
     return out;
   }
@@ -77,11 +82,34 @@ export function redactEvent(
   knownSecrets: readonly string[] = [],
   patterns: readonly SecretPattern[] = BUILTIN_PATTERNS,
 ): SignedEvent {
-  const payload = redactValue(event.body.payload, knownSecrets, patterns);
-  // redactValue preserves structure, so the redacted body still parses as its
-  // variant; re-parsing also guarantees we never broadcast a malformed event.
-  return signedEventSchema.parse({
-    ...event,
-    body: { type: event.body.type, payload },
-  });
+  const sealed = (payload: unknown): { ok: true; event: SignedEvent } | { ok: false } => {
+    const parsed = signedEventSchema.safeParse({
+      ...event,
+      body: { type: event.body.type, payload },
+    });
+    return parsed.success ? { ok: true, event: parsed.data } : { ok: false };
+  };
+
+  // redactValue preserves structure, so the redacted body normally still
+  // parses as its variant; re-parsing guarantees we never broadcast a
+  // malformed event.
+  const rewritten = sealed(redactValue(event.body.payload, knownSecrets, patterns));
+  if (rewritten.ok) {
+    return rewritten.event;
+  }
+
+  // Redaction can make a string *longer* — a placeholder is longer than a
+  // short secret — so a field near a schema maximum can overflow it. That must
+  // not throw: this runs on the broadcast and replay paths, so an event that
+  // cannot be redacted-and-parsed would take the session's whole outbound side
+  // with it, on every reconnect, permanently. Collapse each affected string to
+  // one placeholder instead: same secrets gone, bounded length.
+  const collapsed = sealed(redactValue(event.body.payload, knownSecrets, patterns, true));
+  if (collapsed.ok) {
+    return collapsed.event;
+  }
+
+  // Nothing we can do produces a valid event. Fail closed: the caller gets an
+  // exception rather than an unredacted broadcast.
+  throw new Error(`cannot redact event seq ${event.seq} into a valid event`);
 }
