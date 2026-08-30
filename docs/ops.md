@@ -36,6 +36,7 @@ stays out of the line entirely.
 | `agent.detached`                      | info  | `queuedPrompts`                         | The bridge exited. Expected on restart; a repeating pair with `agent.attached` is an agent that keeps dying |
 | `permission.decided`                  | info  | `participantId`, `requestId`, `outcome` | The audit line for the approval gate                                                                        |
 | `steer_rejected` / `handoff_rejected` | warn  | `participantId`, `reason`               | Every refusal of authority the session issued                                                               |
+| `auth.insecure`                       | warn  | `reason`                                | **No token secret configured** — identity is asserted, not established. Once per session                    |
 | `frame.rejected`                      | warn  | `from`, `participantId`, `reason`       | A malformed frame. A stream of these `from: "agent"` is the shape a prompt injection makes from outside     |
 
 ### Logs never carry content

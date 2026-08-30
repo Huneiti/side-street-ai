@@ -50,6 +50,12 @@ export const serverFrameSchema = z.discriminatedUnion("type", [
     participantId: z.string().min(1),
     role: roleSchema,
     lastSeq: z.number().int().gte(-1),
+    /**
+     * False when the deployment has no token secret configured, so identity is
+     * asserted rather than established (ADR-0005). Optional for older clients;
+     * the server always sends it.
+     */
+    identityVerified: z.boolean().optional(),
   }),
   z.object({ type: z.literal("event"), event: signedEventSchema }),
   z.object({

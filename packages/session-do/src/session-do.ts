@@ -8,7 +8,6 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   agentFrameSchema,
-  joinParamsSchema,
   signedEventSchema,
   summarizeUsage,
   verifyChain,
@@ -22,6 +21,7 @@ import {
 } from "@side-street/core";
 import { redactEventForRole, type RedactionConfig } from "@side-street/redaction";
 import { createLogger, type Logger, type LogSink } from "./log.js";
+import { authenticateAgent, authenticateViewer, replayRole, tokenFromRequest } from "./auth.js";
 import {
   SessionActor,
   type AgentPort,
@@ -39,6 +39,12 @@ export interface Env {
    * unverified callers.
    */
   SENTRY_CLIENT_SECRET?: string;
+  /**
+   * Signing secret for session tokens (ADR-0005), set with `wrangler secret
+   * put`. Absent means insecure mode: identity is whatever a connection claims
+   * about itself, said out loud on every session rather than assumed.
+   */
+  SIDE_STREET_TOKEN_SECRET?: string;
 }
 
 type Attachment = { kind: "viewer"; participantId: string; role: Role } | { kind: "agent" };
@@ -107,6 +113,15 @@ function rowToEvent(row: Record<string, SqlStorageValue>): SignedEvent {
   });
 }
 
+/**
+ * The session name from the request path — what a client typed and what a
+ * token's `sid` binds to. Not `ctx.id`, which is the derived Durable Object
+ * id and something no token issuer sees.
+ */
+function sessionNameFrom(url: URL): string {
+  return url.pathname.split("/")[2] ?? "";
+}
+
 export class SessionDurableObject extends DurableObject<Env> {
   private actor!: SessionActor;
   private store!: SqliteEventStore;
@@ -121,6 +136,8 @@ export class SessionDurableObject extends DurableObject<Env> {
   private redactionConfig: RedactionConfig = {};
   /** Structured ops log. Never carries content — see log.ts. */
   private readonly log: Logger;
+  /** Insecure mode is announced once per session, not once per connection. */
+  private warnedInsecure = false;
 
   constructor(ctx: DurableObjectState, env: Env, sink?: LogSink) {
     super(ctx, env);
@@ -175,9 +192,15 @@ export class SessionDurableObject extends DurableObject<Env> {
       // it gets the Observer floor — the strictest view — whoever asks. A
       // per-role replay view needs the Phase 2 authentication deliverable
       // first; asking politely in a query param is not identity.
-      const events = history.map((event) =>
-        redactEventForRole(event, "observer", this.redactionConfig),
+      // An authenticated caller is served at their own role; everyone else
+      // gets the Observer floor, which is what this endpoint served to all
+      // callers for want of knowing who was asking.
+      const role = await replayRole(
+        request,
+        sessionNameFrom(url),
+        this.env.SIDE_STREET_TOKEN_SECRET,
       );
+      const events = history.map((event) => redactEventForRole(event, role, this.redactionConfig));
       return Response.json({ events }, { headers: cors });
     }
     if (url.pathname.endsWith("/usage")) {
@@ -225,13 +248,20 @@ export class SessionDurableObject extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return Response.json({ error: "expected websocket upgrade" }, { status: 426 });
     }
-    const params = joinParamsSchema.safeParse(Object.fromEntries(url.searchParams));
-    if (!params.success) {
-      // The reason, never the rejected values: a zod message quotes its input.
-      this.log.warn("viewer.rejected", { reason: "invalid join parameters" });
-      return Response.json({ error: "invalid join parameters" }, { status: 400 });
+    const auth = await authenticateViewer(
+      request,
+      url,
+      sessionNameFrom(url),
+      this.env.SIDE_STREET_TOKEN_SECRET,
+    );
+    if (!auth.ok) {
+      // The reason, never the rejected values: a token is a credential and a
+      // zod message quotes its input.
+      this.log.warn("viewer.rejected", { reason: auth.reason });
+      return Response.json({ error: auth.reason }, { status: auth.status });
     }
-    const { participantId, displayName, role } = params.data;
+    const { participantId, displayName, role, verified } = auth.identity;
+    this.warnIfInsecure(verified);
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -248,11 +278,12 @@ export class SessionDurableObject extends DurableObject<Env> {
       participantId,
       role,
       lastSeq: this.store.lastSeq(),
+      identityVerified: verified,
     });
     await this.actor.join({ id: participantId, displayName, role });
     await this.persistState();
     this.log.info("viewer.joined", { participantId, role, lastSeq: this.store.lastSeq() });
-    return new Response(null, { status: 101, webSocket: client });
+    return this.upgrade(request, client);
   }
 
   private async acceptAgent(request: Request, url: URL): Promise<Response> {
@@ -261,6 +292,19 @@ export class SessionDurableObject extends DurableObject<Env> {
     }
     // What the bridge says it is. A bridge that declares nothing still
     // attaches — the session records no agent rather than the wrong one.
+    const auth = await authenticateAgent(
+      request,
+      sessionNameFrom(url),
+      this.env.SIDE_STREET_TOKEN_SECRET,
+    );
+    if (!auth.ok) {
+      // Unauthenticated, this socket lets anyone *be* the sandbox: stream
+      // fabricated agent output, and raise permission requests a Driver is
+      // then asked to approve.
+      this.log.warn("agent.rejected", { reason: auth.reason });
+      return Response.json({ error: auth.reason }, { status: auth.status });
+    }
+    this.warnIfInsecure(auth.identity.verified);
     const declared = agentAttachParamsSchema.safeParse(Object.fromEntries(url.searchParams));
     if (!declared.success) {
       this.log.warn("agent.rejected", { reason: "invalid agent parameters" });
@@ -290,7 +334,37 @@ export class SessionDurableObject extends DurableObject<Env> {
       version: declared.data.agentVersion,
       queuedPrompts: this.outbox.length,
     });
-    return new Response(null, { status: 101, webSocket: client });
+    return this.upgrade(request, client);
+  }
+
+  /**
+   * A 101 that echoes the selected subprotocol. A browser fails the connection
+   * outright if it offered one and the server names none back.
+   */
+  private upgrade(request: Request, client: WebSocket): Response {
+    const presented = tokenFromRequest(request);
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+      ...(presented === undefined
+        ? {}
+        : { headers: { "Sec-WebSocket-Protocol": presented.subprotocol } }),
+    });
+  }
+
+  /**
+   * Says it once per session, not once per connection: a deployment with no
+   * token secret is one where identity is asserted rather than established,
+   * and that should be legible in the log without drowning it.
+   */
+  private warnIfInsecure(verified: boolean): void {
+    if (verified || this.warnedInsecure) {
+      return;
+    }
+    this.warnedInsecure = true;
+    this.log.warn("auth.insecure", {
+      reason: "no SIDE_STREET_TOKEN_SECRET configured; identity is unverified",
+    });
   }
 
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {

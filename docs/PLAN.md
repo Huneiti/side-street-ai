@@ -233,23 +233,31 @@ _Goal: the attribution the log has always carried is attribution somebody verifi
 half-phase because nothing else waits on it and it touches one seam — who a socket is —
 rather than the session model._
 
-- [ ] Signed session tokens verified at the Worker edge, replacing self-asserted
-      `participantId` / `displayName` / `role` on the viewer socket (ADR-0005)
-- [ ] **Role granted, not requested** — the steering engine is unchanged; only the source of
+- [x] Signed session tokens verified at the Worker edge, replacing self-asserted
+      `participantId` / `displayName` / `role` on the viewer socket (ADR-0005) — the claims are
+      the only source of identity; the query string is ignored
+- [x] **Role granted, not requested** — the steering engine is unchanged; only the source of
       `role` moves, from a query parameter to a verified claim
-- [ ] The agent socket authenticated too: `/session/:id/agent` currently accepts any upgrade, so
+- [x] The agent socket authenticated too: `/session/:id/agent` currently accepts any upgrade, so
       an unauthorized party can _be_ the sandbox — stream fabricated agent output, raise
       permission requests a Driver is asked to approve, and displace the real bridge on attach
 - [ ] A swappable `TokenIssuer` mirroring `CredentialIssuer`: symmetric HMAC for dev and
       self-host, asymmetric + JWKS for the hosted control plane's SSO
-- [ ] Tokens in the WebSocket subprotocol rather than the query string, so a credential never
-      reaches an edge access log (`docs/ops.md` promises logs carry no secrets)
-- [ ] Per-role replay on `GET /events`, which serves the Observer floor to everyone today only
-      because it cannot tell who is asking
-- [ ] `pnpm dev` still one command with no credentials: an explicit insecure mode that says so
-      per session, in the log and on screen, and cannot be entered silently
-- [ ] Red-team fixtures for the cases the suite cannot express today — an unauthorized agent
-      attach, a forged role claim, an expired token
+- [ ] Clients present tokens: the web viewer and the bridge runner still connect without one,
+      so a deployment that configures a secret today locks out its own clients — the server
+      half enforces, the client half is next
+- [x] Tokens in the WebSocket subprotocol rather than the query string, so a credential never
+      reaches an edge access log (`docs/ops.md` promises logs carry no secrets) — the selected
+      protocol is echoed back, which a browser requires
+- [x] Per-role replay on `GET /events`, which serves the Observer floor to everyone today only
+      because it cannot tell who is asking — an unauthenticated caller still gets the floor, so
+      replay never became an authenticated-only path
+- [x] `pnpm dev` still one command with no credentials: an explicit insecure mode that says so
+      per session, in the log (`auth.insecure`) and in `welcome`'s `identityVerified`. The
+      on-screen half lands with the client work
+- [x] Red-team fixtures for the cases the suite could not express — unauthorized agent attach,
+      a viewer token on the agent socket, a forged role claim, a wrong-secret signature, a
+      token for another session, and an expired one (`packages/session-do/test-auth/`)
 
 **Exit benchmark:** a deployment reachable from the public internet where an uninvited party can
 neither join a session nor attach as its agent, and where the role in every logged event is one

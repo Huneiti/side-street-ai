@@ -114,6 +114,15 @@ describe("session lifecycle over WebSocket", () => {
     expect(alice.frames.filter(isEventOf("agent_attached"))).toHaveLength(0);
   });
 
+  it("tells a viewer when identity is not verified", async () => {
+    // No token secret configured, which is the `pnpm dev` path. The session
+    // still works; it says so rather than looking like a secure deployment.
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    const welcome = await alice.waitFor((f) => f["type"] === "welcome");
+    expect(welcome).toMatchObject({ identityVerified: false });
+  });
+
   it("answers malformed frames with an error frame", async () => {
     const sessionId = freshSession();
     const alice = await connect(viewerPath(sessionId, "alice", "driver"));

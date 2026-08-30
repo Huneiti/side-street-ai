@@ -14,9 +14,12 @@ export interface CollectedSocket {
   waitFor(predicate: (frame: Record<string, unknown>) => boolean): Promise<Record<string, unknown>>;
 }
 
-export async function connect(path: string): Promise<CollectedSocket> {
+export async function connect(
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<CollectedSocket> {
   const response = await SELF.fetch(`${BASE}${path}`, {
-    headers: { Upgrade: "websocket" },
+    headers: { Upgrade: "websocket", ...headers },
   });
   expect(response.status).toBe(101);
   const ws = response.webSocket;

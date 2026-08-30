@@ -153,16 +153,29 @@ Viewer → server frames:
 
 Server → viewer frames:
 
-| Frame              | Fields                             | Meaning                                                      |
-| ------------------ | ---------------------------------- | ------------------------------------------------------------ |
-| `welcome`          | `participantId`, `role`, `lastSeq` | Sent once on join; `lastSeq` tells the client what to replay |
-| `event`            | `event` (signed envelope)          | Live fan-out of every appended event                         |
-| `steer_rejected`   | `messageId`, `reason`              | Private rejection (sender only; never broadcast)             |
-| `handoff_rejected` | `reason`                           | Private rejection of a `handoff` (sender only)               |
-| `error`            | `message`                          | Malformed frame                                              |
+| Frame              | Fields                                                 | Meaning                                                                                                                   |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `welcome`          | `participantId`, `role`, `lastSeq`, `identityVerified` | Sent once on join; `lastSeq` tells the client what to replay, `identityVerified` whether a token established the identity |
+| `event`            | `event` (signed envelope)                              | Live fan-out of every appended event                                                                                      |
+| `steer_rejected`   | `messageId`, `reason`                                  | Private rejection (sender only; never broadcast)                                                                          |
+| `handoff_rejected` | `reason`                                               | Private rejection of a `handoff` (sender only)                                                                            |
+| `error`            | `message`                                              | Malformed frame                                                                                                           |
 
 A participant's departure is logged only when their last open socket closes (multi-tab and
 reconnect races keep them present).
+
+**Identity**: when the deployment has a token secret configured, a viewer presents a signed
+session token in the WebSocket subprotocol — `side-street.token.<jwt>` — and the server echoes
+the selected protocol back, which a browser requires. The token's claims are the only source of
+`participantId`, `displayName` and **`role`**: the query parameters are ignored, so a
+participant cannot name themselves the Driver on the way in. Anything unsigned, expired, for
+another session, or carrying the wrong audience is refused with `401` before the socket is
+accepted. `GET /events` takes the same token as `Authorization: Bearer` and is then served at
+the caller's own role rather than the Observer floor.
+
+With no secret configured the deployment runs in **insecure mode**: identity is whatever the
+query string claims, as it always was, `welcome` carries `identityVerified: false`, and the
+session logs `auth.insecure`. See ADR-0005 and `docs/ops.md`.
 
 **Redaction**: every `event` frame is passed through the redaction pass, keyed by the
 recipient socket's role, before it is sent (`@side-street/redaction`; PLAN.md invariant 5).
@@ -193,6 +206,12 @@ sends them to the agent**. They stay in the redaction set for the session's life
 grant's: a credential echoed after expiry is still a secret in front of everyone watching.
 The sandbox side learns which of its environment values are secret from the
 `SIDE_STREET_SECRET_ENV` boot variable, which names the injected keys.
+
+**Authentication**: with a token secret configured, the agent socket requires a token whose
+audience is `agent`, presented the same way. A viewer's token — however validly signed — is
+refused, and so is an unauthenticated attach. Without this the socket lets anyone _be_ the
+sandbox: stream fabricated agent output, and raise permission requests a Driver is then asked
+to approve.
 
 **Identity**: the bridge declares what it is in the socket's query string
 (`/agent?agent=gemini&agentVersion=0.57.0`), which is logged as `agent_attached`. Both are
