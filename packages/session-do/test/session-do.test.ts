@@ -114,6 +114,17 @@ describe("session lifecycle over WebSocket", () => {
     expect(alice.frames.filter(isEventOf("agent_attached"))).toHaveLength(0);
   });
 
+  it("sends welcome before any event, even to the first viewer of a fresh session", async () => {
+    // `start()` appends and broadcasts, so a socket accepted before it ran
+    // received `session_started` ahead of its own welcome. Harmless while the
+    // only early event is seq 0 — which is exactly where the cursor belongs —
+    // and silently skipped replay the moment there is more than one.
+    const alice = await connect(viewerPath(freshSession(), "alice", "driver"));
+    await alice.waitFor(isEventOf("participant_joined"));
+    expect(alice.frames[0]).toMatchObject({ type: "welcome" });
+    expect(alice.frames.map((f) => f["type"]).indexOf("welcome")).toBe(0);
+  });
+
   it("tells a viewer when identity is not verified", async () => {
     // No token secret configured, which is the `pnpm dev` path. The session
     // still works; it says so rather than looking like a secure deployment.

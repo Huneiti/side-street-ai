@@ -263,12 +263,17 @@ export class SessionDurableObject extends DurableObject<Env> {
     const { participantId, displayName, role, verified } = auth.identity;
     this.warnIfInsecure(verified);
 
+    // Before the socket is accepted, not after: `start()` appends and
+    // broadcasts, and a socket already accepted receives that broadcast — so
+    // the first viewer of a fresh session was being sent `session_started`
+    // ahead of its own welcome.
+    await this.ensureStarted();
+
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ kind: "viewer", participantId, role } satisfies Attachment);
 
-    await this.ensureStarted();
     // Welcome must be the socket's first frame (docs/protocol.md): join()
     // broadcasts the join event to every viewer including this one, and an
     // event arriving before welcome advances the client's cursor past the
