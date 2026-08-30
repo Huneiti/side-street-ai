@@ -139,6 +139,23 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
         setNotice(error instanceof Error ? error.message : String(error));
       });
   }, [details.sessionId]);
+  const verifySession = useCallback(() => {
+    const client = clientRef.current;
+    if (client === null) return;
+    setNotice("Verifying the stored hash chain…");
+    client
+      .verify()
+      .then((result) => {
+        setNotice(
+          result.valid
+            ? `Hash chain verified (${result.length} events)`
+            : `Hash chain failed at event ${result.firstInvalidSeq}: ${result.reason}`,
+        );
+      })
+      .catch((error: unknown) => {
+        setNotice(error instanceof Error ? error.message : String(error));
+      });
+  }, []);
 
   return (
     <SessionView
@@ -150,6 +167,7 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
       onSteer={steer}
       onHandoff={handoff}
       onDecide={decide}
+      onVerify={verifySession}
       onExport={exportTranscript}
       onLeave={onLeave}
     />
