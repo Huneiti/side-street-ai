@@ -282,6 +282,46 @@ describe("agent bridge", () => {
   });
 });
 
+describe("usage", () => {
+  it("meters a real session from its own log", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor((f) => f["type"] === "welcome");
+    const bob = await connect(viewerPath(sessionId, "bob", "navigator"));
+    await bob.waitFor((f) => f["type"] === "welcome");
+    alice.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "alice" }));
+    await bob.waitFor(isEventOf("control_handoff"));
+    alice.ws.send(JSON.stringify({ type: "steer", id: "m1", text: "fix it", delivery: "queue" }));
+    await bob.waitFor(isEventOf("human_message"));
+
+    const response = await SELF.fetch(`${BASE}/session/${sessionId}/usage`);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    const usage = (await response.json()) as Record<string, unknown>;
+    expect(usage).toMatchObject({
+      steered: true,
+      steerers: ["alice"],
+      humanMessages: 1,
+      handoffs: 1,
+    });
+    expect(usage["participants"]).toEqual(expect.arrayContaining(["alice", "bob"]));
+    // Derived, so it agrees with the log it is billed from by construction.
+    const replay = await SELF.fetch(`${BASE}/session/${sessionId}/events?from=0`);
+    const { events } = (await replay.json()) as { events: SignedEvent[] };
+    expect(usage["events"]).toBe(events.length);
+  });
+
+  it("meters an untouched session as unsteered rather than failing", async () => {
+    const sessionId = freshSession();
+    const alice = await connect(viewerPath(sessionId, "alice", "observer"));
+    await alice.waitFor((f) => f["type"] === "welcome");
+    const usage = (await (await SELF.fetch(`${BASE}/session/${sessionId}/usage`)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(usage).toMatchObject({ steered: false, steerers: [], humanMessages: 0 });
+  });
+});
+
 describe("replay", () => {
   it("serves a verifiable tail from any offset", async () => {
     const sessionId = freshSession();

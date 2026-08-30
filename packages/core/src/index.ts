@@ -30,6 +30,12 @@ export {
 export { ROLES, canApproveTools, canSteer, canSuggest, roleSchema, type Role } from "./roles.js";
 export { toMarkdown, type TranscriptOptions } from "./transcript.js";
 export {
+  DEFAULT_IDLE_AFTER_MS,
+  summarizeUsage,
+  type UsageOptions,
+  type UsageSummary,
+} from "./usage.js";
+export {
   SteeringController,
   type HandoffResult,
   type Participant,

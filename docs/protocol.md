@@ -222,6 +222,32 @@ Re-verifies the full hash chain server-side and returns the result
 (`{ valid: true, length }`, or `{ valid: false, firstInvalidSeq, reason }`), so any client or
 auditor can check the log's integrity without downloading it.
 
+### `GET /session/:id/usage` — session meter
+
+Returns the session's usage summary as JSON, derived from the log on demand rather than
+counted alongside it: the meter cannot drift from the timeline it bills, an evicted Durable
+Object loses no counters, and any past session can be re-metered from its log and checked
+against `/verify` like any other claim.
+
+| Field                         | Meaning                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `steered`, `steerers`         | Did a human steer this agent, and which distinct humans did                      |
+| `spanMs`, `activeMs`          | Wall-clock first to last event; the same minus every gap over the idle threshold |
+| `humanMessages`, `interrupts` | Steering volume, and the expensive kind that cancels a turn                      |
+| `handoffs`, `participants`    | The multiplayer signals                                                          |
+| `agentTurns`, `toolCalls`     | What the agent did                                                               |
+| `approvals`                   | `{ granted, denied }` from the gate                                              |
+| `unresolvedSteps`             | Steps an agent restart left unaccounted for — the number to watch                |
+
+`spanMs` and `activeMs` are both reported because which one a price should key off is a
+business decision, not a fact: a session left open overnight spans eight hours and was active
+for twenty minutes. The idle threshold defaults to five minutes — longer than a slow tool call,
+shorter than a coffee break.
+
+Counts and participant identities only, never message text, so nothing here needs the
+redaction pass. Like `/events` and `/verify` it carries no authenticated identity; that waits
+on the authentication deliverable.
+
 ### `GET /session/:id/events?from=N` — replay
 
 Returns `{ events: [...] }` — the ordered tail with `seq >= N`. A late joiner connects the

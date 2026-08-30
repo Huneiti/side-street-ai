@@ -10,6 +10,7 @@ import {
   agentFrameSchema,
   joinParamsSchema,
   signedEventSchema,
+  summarizeUsage,
   verifyChain,
   agentAttachParamsSchema,
   viewerFrameSchema,
@@ -167,6 +168,14 @@ export class SessionDurableObject extends DurableObject<Env> {
         redactEventForRole(event, "observer", this.redactionConfig),
       );
       return Response.json({ events }, { headers: cors });
+    }
+    if (url.pathname.endsWith("/usage")) {
+      // Derived from the log on demand, never counted alongside it: the meter
+      // cannot drift from the timeline it bills, and a past session can be
+      // re-metered at any time. Counts and identities only — no message text,
+      // so nothing here needs the redaction pass.
+      const summary = summarizeUsage(await this.actor.replayFrom(0));
+      return Response.json(summary, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
     if (url.pathname.endsWith("/verify")) {
       // Tamper-evidence surface: re-verifies the full chain server-side so
