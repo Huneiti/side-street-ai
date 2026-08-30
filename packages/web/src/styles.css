@@ -117,6 +117,26 @@ select {
   color: var(--danger);
 }
 
+.session-meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 75%, transparent);
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.session-meter strong {
+  color: var(--text);
+}
+
+.session-meter .meter-warning {
+  color: var(--danger);
+}
+
 .roster {
   display: flex;
   gap: 8px;
