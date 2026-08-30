@@ -39,9 +39,21 @@ All four must pass before you open a PR (CI enforces them).
 
 Side Street is licensed under AGPL-3.0. To keep a sustainable open-source project (including
 the ability to offer a commercially licensed hosted service), we ask contributors to agree to
-a Contributor License Agreement (CLA) before their first PR is merged. The CLA bot will
-prompt you on your first PR; the code you contribute remains open source under AGPL-3.0
-forever.
+a Contributor License Agreement (CLA) before their first PR is merged. A maintainer will ask
+on your first PR — there is no CLA bot yet, so nothing will block you automatically. The
+code you contribute remains open source under AGPL-3.0 forever.
+
+## Changesets
+
+A change that alters what a package does carries a changeset:
+
+```bash
+pnpm changeset
+```
+
+Pick the packages and the bump, and write the note for a consumer rather than a reviewer.
+Releases are cut from these, so the changelog is written while the change is fresh. Docs-only,
+CI, and internal-refactor changes need none. See [`docs/releasing.md`](docs/releasing.md).
 
 ## Reporting security issues
 

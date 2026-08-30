@@ -91,6 +91,7 @@ Swap in a real agent with one flag (`--agent claude-code`, `codex`, `gemini`) â€
 | [`docs/adr/`](docs/adr/)                                     | Architecture decision records â€” what we chose, and what it cost.                    |
 | [`docs/benchmarks/`](docs/benchmarks/)                       | Runbooks for the phase exit benchmarks.                                             |
 | [`docs/research/`](docs/research/)                           | The research foundation the plan is built on.                                       |
+| [`docs/releasing.md`](docs/releasing.md)                     | How versions are cut: changesets, semver, signed tags.                              |
 | [`CLAUDE.md`](CLAUDE.md)                                     | The working agreement all contributors (human and agent) follow.                    |
 
 ## License
