@@ -1,0 +1,13 @@
+# Prettier is authoritative for formatting and writes LF. Without this, a
+# clone on Windows (git's default core.autocrlf=true) checks out CRLF and
+# `pnpm format:check` fails on every file in the repo before anyone has
+# changed anything.
+* text=auto eol=lf
+
+# Binary, so git never touches the bytes.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
