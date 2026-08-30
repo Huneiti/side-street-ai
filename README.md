@@ -8,6 +8,14 @@ own agent: it wraps Claude Code, Codex, Gemini CLI, and anything else that speak
 [Agent Client Protocol](https://agentclientprotocol.com), and owns the collaboration surface
 around them.
 
+![Two people steering one agent: Ada takes the wheel and asks what is breaking, Bob suggests a cause as a Navigator, Ada acts on it, and the approval gate stops the side-effecting step until the Driver answers.](docs/assets/demo.gif)
+
+_Ada takes the wheel and asks what is breaking. Bob — a Navigator — suggests a cause, and it
+lands as a **suggestion**, behind the Driver. Ada acts on it, and the agent's next step is
+side-effecting, so it stops at an **approval gate** only the wheel-holder can answer. Every line
+of that is in a hash-chained log with an author on it. No API key: the demo runs against the
+stub agent that ships in this repo._
+
 > **Status: pre-alpha, but runnable.** We're building in public against a phased plan — see
 > [`docs/PLAN.md`](docs/PLAN.md). One command runs the whole thing with no API key; see below.
 >
