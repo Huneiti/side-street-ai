@@ -13,6 +13,7 @@
  * said.
  */
 
+import { timingSafeEqual } from "@side-street/core";
 import { z } from "zod";
 
 export const SIGNATURE_HEADER = "sentry-hook-signature";
@@ -128,19 +129,4 @@ export async function verifySignature(
 
 function hex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/**
- * Constant-time comparison. A length-independent early return would leak the
- * digest one character per request to anyone willing to make enough of them.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let difference = 0;
-  for (let i = 0; i < a.length; i++) {
-    difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return difference === 0;
 }

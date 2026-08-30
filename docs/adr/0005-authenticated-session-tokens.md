@@ -1,6 +1,6 @@
 # ADR-0005: Identity is a signed session token, minted by a swappable issuer
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-30
 - **Deciders:** project founder
 

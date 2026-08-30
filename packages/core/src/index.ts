@@ -28,6 +28,21 @@ export {
   type VerifyResult,
 } from "./hash-chain.js";
 export { ROLES, canApproveTools, canSteer, canSuggest, roleSchema, type Role } from "./roles.js";
+export {
+  CLOCK_SKEW_SECONDS,
+  DEFAULT_TOKEN_TTL_SECONDS,
+  mintSessionToken,
+  sessionClaimsSchema,
+  timingSafeEqual,
+  tokenAudienceSchema,
+  verifySessionToken,
+  type MintInput,
+  type SessionClaims,
+  type TokenAudience,
+  type TokenFailure,
+  type VerifyOptions,
+  type VerifyResult as TokenVerifyResult,
+} from "./session-token.js";
 export { toMarkdown, type TranscriptOptions } from "./transcript.js";
 export {
   DEFAULT_IDLE_AFTER_MS,
