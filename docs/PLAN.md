@@ -216,6 +216,9 @@ screen-share + copy-paste._
 **Exit benchmark:** a pilot team (recruit 2–3 from the OSS community) runs ≥1 real incident
 through Side Street and reports it beat their status-quo workflow; the same session works with
 two different backing agents.
+_Neither half automates: see `docs/benchmarks/phase-3.md`. The agent-agnostic half is a ten-minute
+checklist you can run now; the pilot needs a deployment the team can reach, which waits on Phase
+3½ (identity)._
 
 ### Phase 4 — Open-source launch (overlaps Phase 2–3; launch gate after Phase 2)
 
