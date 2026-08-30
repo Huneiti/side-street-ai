@@ -23,6 +23,38 @@
 import { z } from "zod";
 import { roleSchema } from "./roles.js";
 
+/**
+ * Subprotocol prefix a token travels under on a WebSocket handshake.
+ *
+ * Lives here rather than in the server, because it is wire protocol: the
+ * Worker reads it, the browser and the bridge runner write it, and a constant
+ * defined on one side of a socket is a constant that drifts.
+ *
+ * A browser cannot set headers on a WebSocket handshake, so the alternative is
+ * the query string — and a credential in a URL lands in edge access logs,
+ * which `docs/ops.md` promises never carry secrets.
+ */
+export const TOKEN_SUBPROTOCOL_PREFIX = "side-street.token.";
+
+/** The subprotocol list a client offers when it holds a token. */
+export function tokenSubprotocols(token: string | undefined): string[] {
+  return token === undefined || token === "" ? [] : [`${TOKEN_SUBPROTOCOL_PREFIX}${token}`];
+}
+
+/** The token in an offered subprotocol list, if one is there. */
+export function tokenFromSubprotocols(offered: readonly string[]): string | undefined {
+  for (const raw of offered) {
+    const value = raw.trim();
+    if (
+      value.startsWith(TOKEN_SUBPROTOCOL_PREFIX) &&
+      value.length > TOKEN_SUBPROTOCOL_PREFIX.length
+    ) {
+      return value.slice(TOKEN_SUBPROTOCOL_PREFIX.length);
+    }
+  }
+  return undefined;
+}
+
 /** What a token is for. A viewer token must never open the agent socket. */
 export const tokenAudienceSchema = z.enum(["viewer", "agent"]);
 export type TokenAudience = z.infer<typeof tokenAudienceSchema>;
@@ -77,10 +109,10 @@ export interface MintInput {
   audience: TokenAudience;
   displayName?: string | undefined;
   /** Required for viewer tokens; meaningless for agent tokens. */
-  role?: SessionClaims["role"];
-  ttlSeconds?: number;
+  role?: SessionClaims["role"] | undefined;
+  ttlSeconds?: number | undefined;
   /** Epoch ms; injectable so tests are not clock-dependent. */
-  now?: number;
+  now?: number | undefined;
 }
 
 const HEADER = { alg: "HS256", typ: "JWT" } as const;

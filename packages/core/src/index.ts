@@ -31,6 +31,9 @@ export { ROLES, canApproveTools, canSteer, canSuggest, roleSchema, type Role } f
 export {
   CLOCK_SKEW_SECONDS,
   DEFAULT_TOKEN_TTL_SECONDS,
+  TOKEN_SUBPROTOCOL_PREFIX,
+  tokenFromSubprotocols,
+  tokenSubprotocols,
   mintSessionToken,
   sessionClaimsSchema,
   timingSafeEqual,

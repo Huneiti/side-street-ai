@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   CLOCK_SKEW_SECONDS,
+  TOKEN_SUBPROTOCOL_PREFIX,
+  tokenFromSubprotocols,
+  tokenSubprotocols,
   DEFAULT_TOKEN_TTL_SECONDS,
   mintSessionToken,
   timingSafeEqual,
@@ -191,5 +194,36 @@ describe("timingSafeEqual", () => {
     // Different lengths cannot be compared in constant time and are not equal.
     expect(timingSafeEqual("abc", "abcd")).toBe(false);
     expect(timingSafeEqual("", "")).toBe(true);
+  });
+});
+
+describe("the subprotocol a token travels under", () => {
+  it("round-trips", () => {
+    const offered = tokenSubprotocols("abc.def.ghi");
+    expect(offered).toEqual([`${TOKEN_SUBPROTOCOL_PREFIX}abc.def.ghi`]);
+    expect(tokenFromSubprotocols(offered)).toBe("abc.def.ghi");
+  });
+
+  it("offers nothing when there is no token, so an insecure deployment still connects", () => {
+    expect(tokenSubprotocols(undefined)).toEqual([]);
+    expect(tokenSubprotocols("")).toEqual([]);
+    expect(tokenFromSubprotocols([])).toBeUndefined();
+  });
+
+  it("finds the token among other offered protocols, and tolerates whitespace", () => {
+    expect(tokenFromSubprotocols(["chat", ` ${TOKEN_SUBPROTOCOL_PREFIX}xyz `, "superchat"])).toBe(
+      "xyz",
+    );
+  });
+
+  it("ignores a bare prefix carrying no token", () => {
+    expect(tokenFromSubprotocols([TOKEN_SUBPROTOCOL_PREFIX])).toBeUndefined();
+  });
+
+  it("emits a value that is a legal subprotocol token", () => {
+    // RFC 6455 subprotocol names are RFC 7230 tokens: no spaces, no commas,
+    // and crucially no "=" — which is why the JWT base64url is unpadded.
+    const [value] = tokenSubprotocols("aGVsbG8.d29ybGQ.c2ln-_x") as [string];
+    expect(value).toMatch(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/);
   });
 });

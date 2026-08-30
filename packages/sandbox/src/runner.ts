@@ -8,6 +8,7 @@
  */
 
 import { AcpClient, AcpError, type PermissionOutcome } from "@side-street/acp-client";
+import { tokenSubprotocols } from "@side-street/core";
 import { AgentBridge, type SessionSocket } from "./bridge.js";
 import { secretsFromEnv } from "./credentials.js";
 import { spawnAgent } from "./stdio.js";
@@ -15,6 +16,12 @@ import { fileURLToPath } from "node:url";
 
 /** Ships beside the built runner, so `pnpm dev` needs no credentials. */
 const STUB_AGENT = fileURLToPath(new URL("./stub-agent.js", import.meta.url));
+
+/**
+ * Boot-env variable carrying this sandbox's agent token. The launcher mints it
+ * and injects it; the bridge presents it and never logs it.
+ */
+export const SESSION_TOKEN_ENV = "SIDE_STREET_SESSION_TOKEN";
 
 /** What the runner tells the session it is. Declared, never verified. */
 export interface AgentIdentity {
@@ -211,7 +218,11 @@ export async function main(argv: readonly string[]): Promise<void> {
     agent: handshake.agentInfo?.name ?? parsed.agent,
     version: handshake.agentInfo?.version,
   });
-  const ws = await openSessionSocket(wsUrl);
+  // The session token this sandbox booted with (ADR-0005). Injected as boot
+  // env like every other session-scoped credential, so it inherits the same
+  // lifetime and the same declaration to the redaction pass. Absent means the
+  // deployment runs unauthenticated, which is what `pnpm dev` does.
+  const ws = await openSessionSocket(wsUrl, process.env[SESSION_TOKEN_ENV]);
   ws.addEventListener("close", () => {
     // ponytail: exit on disconnect and rerun; the DO buffers prompts while
     // the bridge is away. In-process reconnect can come with the E2B adapter.
@@ -276,10 +287,11 @@ async function openSession(
  * A socket that opens and later drops is a different matter: the bridge exits
  * and is rerun, so the session sees a clean detach.
  */
-async function openSessionSocket(wsUrl: string): Promise<WebSocket> {
+async function openSessionSocket(wsUrl: string, token?: string): Promise<WebSocket> {
   const deadline = Date.now() + 15_000;
+  const protocols = tokenSubprotocols(token);
   for (let attempt = 0; ; attempt++) {
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, protocols);
     const opened = await new Promise<boolean>((resolve) => {
       ws.addEventListener("open", () => resolve(true), { once: true });
       ws.addEventListener("error", () => resolve(false), { once: true });

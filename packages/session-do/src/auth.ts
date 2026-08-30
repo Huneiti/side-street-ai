@@ -17,20 +17,13 @@
  */
 
 import {
+  TOKEN_SUBPROTOCOL_PREFIX,
   joinParamsSchema,
+  tokenFromSubprotocols,
   verifySessionToken,
   type Role,
   type TokenFailure,
 } from "@side-street/core";
-
-/**
- * Subprotocol prefix carrying the token. A browser cannot set headers on a
- * WebSocket handshake, so the alternative is the query string — and a
- * credential in a URL lands in edge access logs, which `docs/ops.md` promises
- * never carry secrets. This is the one channel that is both browser-reachable
- * and off the URL.
- */
-export const TOKEN_SUBPROTOCOL_PREFIX = "side-street.token.";
 
 export interface ViewerIdentity {
   participantId: string;
@@ -66,16 +59,10 @@ export function tokenFromRequest(
   if (offered === null) {
     return undefined;
   }
-  for (const raw of offered.split(",")) {
-    const value = raw.trim();
-    if (
-      value.startsWith(TOKEN_SUBPROTOCOL_PREFIX) &&
-      value.length > TOKEN_SUBPROTOCOL_PREFIX.length
-    ) {
-      return { token: value.slice(TOKEN_SUBPROTOCOL_PREFIX.length), subprotocol: value };
-    }
-  }
-  return undefined;
+  const token = tokenFromSubprotocols(offered.split(","));
+  return token === undefined
+    ? undefined
+    : { token, subprotocol: `${TOKEN_SUBPROTOCOL_PREFIX}${token}` };
 }
 
 /** `Authorization: Bearer <token>` for the plain HTTP surfaces. */

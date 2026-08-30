@@ -64,6 +64,40 @@ two lines and a batching transport loses exactly the lines that explain why it w
 issue grouping and stack aggregation are actually wanted, an SDK slots in behind the `LogSink`
 interface in `packages/session-do/src/log.ts` without touching a call site.
 
+## Identity
+
+A deployment with `SIDE_STREET_TOKEN_SECRET` set verifies a signed token on every socket
+(ADR-0005). Set it once:
+
+```bash
+npx wrangler secret put SIDE_STREET_TOKEN_SECRET
+```
+
+Then issue tokens with the same secret in your environment:
+
+```bash
+# A viewer, as a Driver, for ten minutes
+SIDE_STREET_TOKEN_SECRET=… pnpm --filter @side-street/sandbox token   --session incident-4417 --participant ada --role driver --name Ada
+
+# The sandbox's own token, which carries no role
+SIDE_STREET_TOKEN_SECRET=… pnpm --filter @side-street/sandbox token   --session incident-4417 --participant sandbox-1 --audience agent
+```
+
+The token goes to stdout and everything else to stderr, so `… token … > t.txt` gives a file
+with a token in it. **Role is granted here**, not chosen by the person connecting — that is the
+whole point of the mechanism, and a viewer token without `--role` is refused at mint time
+rather than failing later at a socket.
+
+The bridge presents its token from `SIDE_STREET_SESSION_TOKEN` in the sandbox's boot
+environment, alongside the other session-scoped credentials, so it inherits the same lifetime
+and the same declaration to the redaction pass.
+
+There are **no accounts**. Who is entitled to a token is the operator's judgement, exercised by
+choosing to run the command. Revocation is by expiry alone; the default is ten minutes.
+
+With no secret configured the deployment runs unauthenticated and says so — `auth.insecure`
+below, and `identityVerified: false` in every `welcome`.
+
 ## Per-session usage
 
 `GET /session/:id/usage` returns the session's meter — steered-or-not, span and active time,

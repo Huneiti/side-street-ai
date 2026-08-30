@@ -21,6 +21,7 @@
     "test": "vitest run",
     "lint": "eslint src test",
     "runner": "node --env-file-if-exists=../../.env dist/cli.js",
+    "token": "node --env-file-if-exists=../../.env dist/mint-token-cli.js",
     "dev": "node dist/cli.js http://127.0.0.1:8787/session/demo . --agent stub"
   },
   "dependencies": {

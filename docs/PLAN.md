@@ -242,10 +242,13 @@ rather than the session model._
       an unauthorized party can _be_ the sandbox — stream fabricated agent output, raise
       permission requests a Driver is asked to approve, and displace the real bridge on attach
 - [ ] A swappable `TokenIssuer` mirroring `CredentialIssuer`: symmetric HMAC for dev and
-      self-host, asymmetric + JWKS for the hosted control plane's SSO
-- [ ] Clients present tokens: the web viewer and the bridge runner still connect without one,
-      so a deployment that configures a secret today locks out its own clients — the server
-      half enforces, the client half is next
+      self-host, asymmetric + JWKS for the hosted control plane's SSO — the symmetric half
+      ships as a mint command (`pnpm --filter @side-street/sandbox token`); the interface and
+      the asymmetric issuer behind it are what remain
+- [ ] Clients present tokens — the **bridge runner does**, from `SIDE_STREET_SESSION_TOKEN`
+      in its boot environment. The **web viewer does not**, so a deployment that configures a
+      secret still locks out its browsers; that and issue #56 (a `?server=` link must not be
+      able to redirect a credential) are the remaining half
 - [x] Tokens in the WebSocket subprotocol rather than the query string, so a credential never
       reaches an edge access log (`docs/ops.md` promises logs carry no secrets) — the selected
       protocol is echoed back, which a browser requires
