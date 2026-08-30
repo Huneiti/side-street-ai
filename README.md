@@ -40,8 +40,11 @@ stub agent that ships in this repo._
 > **Structured ops logs** carry no content by construction, which a red-team fixture enforces.
 > The ACP client negotiates **authentication**, so a second backing agent attaches with a flag.
 >
-> **Not yet: authentication.** v0 identity is unauthenticated query params — do not expose a
-> deployment beyond dev, and that is what gates a hosted demo. The Phase 2 exit benchmark passes
+> **Not yet: authentication.** v0 identity is unauthenticated query params — a viewer names
+> themselves _and their role_, and the agent socket accepts any connection at all. The log is
+> tamper-evident, but it attributes what a socket claimed rather than who acted. Do not expose a
+> deployment beyond dev; this is what gates a hosted demo, and the design is proposed in
+> [ADR-0005](docs/adr/0005-authenticated-session-tokens.md). The Phase 2 exit benchmark passes
 > locally (see [`docs/benchmarks/phase-2.md`](docs/benchmarks/phase-2.md)); its 24-hour soak
 > against a real deployment has not been run. Phase 3's own benchmark — a pilot team running a
 > real incident — is the next gate. Not production-ready.

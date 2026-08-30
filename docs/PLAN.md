@@ -202,6 +202,13 @@ _Automated: the red-team half runs in CI on every PR; the durability half is
 `docs/benchmarks/phase-2.md`. Passing locally against `wrangler dev` (including a full
 cold-restart of the server); the 24h soak against a deployment is still to run._
 
+> **Amendment (2026-08-30): authentication was named here and never listed.** §5 said v0
+> identity is unauthenticated query params and called authentication a Phase 2 deliverable, but
+> no Phase 2 checkbox ever covered it, so it was never built and the phase closed around the
+> gap. It is now a Phase 3½ deliverable below, because it blocks the launch rather than the
+> safety work: everything Phase 2 shipped — redaction, gates, the chain, compensation — is
+> correct and is enforced against identities nobody verifies. See ADR-0005.
+
 ### Phase 3 — The vertical wedge (weeks 11–16)
 
 _Goal: an on-call team resolves a real incident faster with shared steering than with
@@ -219,6 +226,34 @@ two different backing agents.
 _Neither half automates: see `docs/benchmarks/phase-3.md`. The agent-agnostic half is a ten-minute
 checklist you can run now; the pilot needs a deployment the team can reach, which waits on Phase
 3½ (identity)._
+
+### Phase 3½ — Identity (blocks the launch gate)
+
+_Goal: the attribution the log has always carried is attribution somebody verified. Sized as a
+half-phase because nothing else waits on it and it touches one seam — who a socket is —
+rather than the session model._
+
+- [ ] Signed session tokens verified at the Worker edge, replacing self-asserted
+      `participantId` / `displayName` / `role` on the viewer socket (ADR-0005)
+- [ ] **Role granted, not requested** — the steering engine is unchanged; only the source of
+      `role` moves, from a query parameter to a verified claim
+- [ ] The agent socket authenticated too: `/session/:id/agent` currently accepts any upgrade, so
+      an unauthorized party can _be_ the sandbox — stream fabricated agent output, raise
+      permission requests a Driver is asked to approve, and displace the real bridge on attach
+- [ ] A swappable `TokenIssuer` mirroring `CredentialIssuer`: symmetric HMAC for dev and
+      self-host, asymmetric + JWKS for the hosted control plane's SSO
+- [ ] Tokens in the WebSocket subprotocol rather than the query string, so a credential never
+      reaches an edge access log (`docs/ops.md` promises logs carry no secrets)
+- [ ] Per-role replay on `GET /events`, which serves the Observer floor to everyone today only
+      because it cannot tell who is asking
+- [ ] `pnpm dev` still one command with no credentials: an explicit insecure mode that says so
+      per session, in the log and on screen, and cannot be entered silently
+- [ ] Red-team fixtures for the cases the suite cannot express today — an unauthorized agent
+      attach, a forged role claim, an expired token
+
+**Exit benchmark:** a deployment reachable from the public internet where an uninvited party can
+neither join a session nor attach as its agent, and where the role in every logged event is one
+an issuer granted rather than one the participant asked for.
 
 ### Phase 4 — Open-source launch (overlaps Phase 2–3; launch gate after Phase 2)
 
