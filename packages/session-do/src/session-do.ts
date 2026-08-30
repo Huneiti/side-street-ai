@@ -20,6 +20,7 @@ import {
   type SignedEvent,
 } from "@side-street/core";
 import { redactEventForRole, type RedactionConfig } from "@side-street/redaction";
+import { createLogger, type Logger, type LogSink } from "./log.js";
 import {
   SessionActor,
   type AgentPort,
@@ -111,9 +112,12 @@ export class SessionDurableObject extends DurableObject<Env> {
    * connect — see `registerSecrets`.
    */
   private redactionConfig: RedactionConfig = {};
+  /** Structured ops log. Never carries content — see log.ts. */
+  private readonly log: Logger;
 
-  constructor(ctx: DurableObjectState, env: Env) {
+  constructor(ctx: DurableObjectState, env: Env, sink?: LogSink) {
     super(ctx, env);
+    this.log = createLogger(ctx.id.toString(), sink);
     ctx.blockConcurrencyWhile(async () => {
       this.store = new SqliteEventStore(ctx.storage.sql);
       const snapshot = await ctx.storage.get<SessionActorSnapshot>(SNAPSHOT_KEY);
@@ -199,6 +203,8 @@ export class SessionDurableObject extends DurableObject<Env> {
     }
     const params = joinParamsSchema.safeParse(Object.fromEntries(url.searchParams));
     if (!params.success) {
+      // The reason, never the rejected values: a zod message quotes its input.
+      this.log.warn("viewer.rejected", { reason: "invalid join parameters" });
       return Response.json({ error: "invalid join parameters" }, { status: 400 });
     }
     const { participantId, displayName, role } = params.data;
@@ -221,6 +227,7 @@ export class SessionDurableObject extends DurableObject<Env> {
     });
     await this.actor.join({ id: participantId, displayName, role });
     await this.persistState();
+    this.log.info("viewer.joined", { participantId, role, lastSeq: this.store.lastSeq() });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -232,6 +239,7 @@ export class SessionDurableObject extends DurableObject<Env> {
     // attaches — the session records no agent rather than the wrong one.
     const declared = agentAttachParamsSchema.safeParse(Object.fromEntries(url.searchParams));
     if (!declared.success) {
+      this.log.warn("agent.rejected", { reason: "invalid agent parameters" });
       return Response.json({ error: "invalid agent parameters" }, { status: 400 });
     }
     const pair = new WebSocketPair();
@@ -250,6 +258,14 @@ export class SessionDurableObject extends DurableObject<Env> {
     );
     await this.persistState();
     this.flushOutbox(server);
+    // A second attach means the previous agent process is gone: this line and
+    // the `step_unresolved` events it triggers are how an operator sees an
+    // agent that keeps dying.
+    this.log.info("agent.attached", {
+      agent: declared.data.agent,
+      version: declared.data.agentVersion,
+      queuedPrompts: this.outbox.length,
+    });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -266,6 +282,9 @@ export class SessionDurableObject extends DurableObject<Env> {
     if (attachment.kind === "agent") {
       const frame = agentFrameSchema.safeParse(parsedJson);
       if (!frame.success) {
+        // The sandbox is the least trustworthy speaker, so a stream of these
+        // is the shape a prompt injection makes from the outside.
+        this.log.warn("frame.rejected", { from: "agent", reason: "invalid agent frame" });
         this.send(ws, { type: "error", message: "invalid agent frame" });
         return;
       }
@@ -293,6 +312,11 @@ export class SessionDurableObject extends DurableObject<Env> {
 
     const frame = viewerFrameSchema.safeParse(parsedJson);
     if (!frame.success) {
+      this.log.warn("frame.rejected", {
+        from: "viewer",
+        participantId: attachment.participantId,
+        reason: "invalid frame",
+      });
       this.send(ws, { type: "error", message: "invalid frame" });
       return;
     }
@@ -305,6 +329,12 @@ export class SessionDurableObject extends DurableObject<Env> {
     } else if (frame.data.type === "handoff") {
       await this.actor.handoff(attachment.participantId, frame.data.toParticipantId);
     } else {
+      // The audit line for the gate: who answered which request, and how.
+      this.log.info("permission.decided", {
+        participantId: attachment.participantId,
+        requestId: frame.data.requestId,
+        outcome: frame.data.outcome.kind,
+      });
       await this.actor.decide(attachment.participantId, frame.data.requestId, frame.data.outcome);
     }
     await this.persistState();
@@ -324,8 +354,13 @@ export class SessionDurableObject extends DurableObject<Env> {
       if (remaining.length === 0) {
         await this.actor.leave(attachment.participantId);
         await this.persistState();
+        this.log.info("viewer.left", { participantId: attachment.participantId });
       }
+      return;
     }
+    // The bridge exits when its socket closes, so this is an agent going away
+    // — expected on a restart, worth seeing when it is not.
+    this.log.info("agent.detached", { queuedPrompts: this.outbox.length });
   }
 
   private async ensureStarted(): Promise<void> {
@@ -333,6 +368,7 @@ export class SessionDurableObject extends DurableObject<Env> {
       return;
     }
     await this.actor.start(this.ctx.id.toString(), "claude-code", "e2b");
+    this.log.info("session.started");
   }
 
   private viewerSockets(): WebSocket[] {
@@ -392,6 +428,9 @@ export class SessionDurableObject extends DurableObject<Env> {
   }
 
   private sendPrivate(participantId: string, message: PrivateMessage): void {
+    // Every refusal of authority the session issues, in one place. The reason
+    // strings are our own constants, never participant input.
+    this.log.warn(message.kind, { participantId, reason: message.reason });
     const frame: ServerFrame =
       message.kind === "steer_rejected"
         ? { type: "steer_rejected", messageId: message.messageId, reason: message.reason }

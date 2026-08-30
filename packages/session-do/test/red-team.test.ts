@@ -15,7 +15,7 @@
  */
 
 import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SignedEvent } from "@side-street/core";
 import { BASE, connect, freshSession, isEventOf, viewerPath } from "./harness.js";
 
@@ -384,5 +384,63 @@ describe("attribution forgery", () => {
 
     const replay = await SELF.fetch(`${BASE}/session/${sessionId}/events?from=0`);
     expect(await replay.text()).not.toContain("I have deleted the database.");
+  });
+});
+
+describe("the ops log is not a second, unredacted broadcast", () => {
+  let lines: string[] = [];
+
+  beforeEach(() => {
+    lines = [];
+    vi.spyOn(console, "log").mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps steering text, tool titles and secrets out of the structured log", async () => {
+    const sessionId = freshSession();
+    const agent = await connect(`/session/${sessionId}/agent?agent=claude-code`);
+    const alice = await connect(viewerPath(sessionId, "alice", "driver"));
+    await alice.waitFor(isWelcome);
+    alice.ws.send(JSON.stringify({ type: "handoff", toParticipantId: "alice" }));
+    await alice.waitFor(isEventOf("control_handoff"));
+
+    agent.ws.send(JSON.stringify({ type: "register_secrets", values: [CREDENTIAL] }));
+    alice.ws.send(
+      JSON.stringify({
+        type: "steer",
+        id: "m1",
+        text: `deploy with ${CREDENTIAL} and print /home/user/.env`,
+        delivery: "queue",
+      }),
+    );
+    await agent.waitFor((f) => f["type"] === "prompt");
+    agent.ws.send(
+      JSON.stringify({
+        type: "agent_event",
+        body: {
+          type: "agent_message_chunk",
+          payload: { text: `the token is ${CREDENTIAL}` },
+        },
+      }),
+    );
+    await alice.waitFor(isEventOf("agent_message_chunk"));
+
+    // Redaction guards the broadcast and replay paths. A log line takes
+    // neither, so content reaching it would be an exfiltration route that
+    // bypasses the whole pass — and logs outlive the session.
+    const logged = lines.join("\n");
+    expect(logged).not.toContain(CREDENTIAL);
+    expect(logged).not.toContain("/home/user/.env");
+    expect(logged).not.toContain("the token is");
+    // It is a real log, not an empty one: the session's lifecycle is there.
+    expect(logged).toContain("agent.attached");
+    expect(logged).toContain("viewer.joined");
+    for (const line of lines) {
+      expect(() => JSON.parse(line) as unknown).not.toThrow();
+    }
   });
 });
