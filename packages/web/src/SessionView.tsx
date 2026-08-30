@@ -227,12 +227,14 @@ function PermissionPrompt({
               {option.name}
             </button>
           ))}
-          <button
-            className="ghost"
-            onClick={() => onDecide(request.requestId, { kind: "cancelled" })}
-          >
-            Deny
-          </button>
+          {!request.options.some((option) => option.kind?.startsWith("reject")) && (
+            <button
+              className="ghost"
+              onClick={() => onDecide(request.requestId, { kind: "cancelled" })}
+            >
+              Deny
+            </button>
+          )}
         </div>
       ) : (
         <span className="approval-wait">awaiting the Driver's decision…</span>
