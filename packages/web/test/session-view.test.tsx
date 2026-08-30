@@ -56,6 +56,7 @@ function render(events: SignedEvent[], self: string, selfRole: Role): string {
       onSteer={() => {}}
       onHandoff={() => {}}
       onDecide={() => {}}
+      onVerify={() => {}}
       onExport={() => {}}
       onLeave={() => {}}
     />,
@@ -70,6 +71,12 @@ describe("the footer an Observer sees", () => {
     expect(markup).not.toContain("Interrupt");
     expect(markup).not.toContain("Take the wheel");
     expect(markup).not.toContain("<input");
+  });
+});
+
+describe("the session header", () => {
+  it("offers server-side hash-chain verification to every viewer", async () => {
+    expect(render(await seed(), "carol", "observer")).toContain("Verify log");
   });
 });
 
