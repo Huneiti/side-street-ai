@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import type { PermissionOutcome, Role, SignedEvent } from "@side-street/core";
+import {
+  summarizeUsage,
+  type PermissionOutcome,
+  type Role,
+  type SignedEvent,
+  type UsageSummary,
+} from "@side-street/core";
 import { canHandWheelTo, controlsFor } from "./lib/controls.js";
 import {
   deriveSession,
@@ -39,6 +45,7 @@ export function SessionView({
     () => deriveSession(events),
     [events],
   );
+  const usage = useMemo(() => summarizeUsage(events), [events]);
   const isDriver = driverId === self;
   const role = roster.find((p) => p.id === self)?.role ?? selfRole;
   const controls = controlsFor(role, isDriver);
@@ -83,6 +90,8 @@ export function SessionView({
           </button>
         </div>
       </header>
+
+      <SessionMeter usage={usage} />
 
       <section className="timeline">
         {timeline.map((item) => (
@@ -142,6 +151,43 @@ export function SessionView({
       </footer>
     </main>
   );
+}
+
+function SessionMeter({ usage }: { usage: UsageSummary }): ReactElement {
+  return (
+    <section className="session-meter" aria-label="Session usage">
+      <strong>
+        {usage.steered ? `Steered by ${usage.steerers.join(", ")}` : "Not steered yet"}
+      </strong>
+      <span>Active {formatDuration(usage.activeMs)}</span>
+      <span>Span {formatDuration(usage.spanMs)}</span>
+      <span>{count(usage.humanMessages, "steer")}</span>
+      <span>{count(usage.interrupts, "interrupt")}</span>
+      <span>{count(usage.handoffs, "handoff")}</span>
+      <span>{count(usage.toolCalls, "tool call")}</span>
+      <span>
+        {usage.approvals.granted} approved · {usage.approvals.denied} denied
+      </span>
+      <strong className={usage.unresolvedSteps > 0 ? "meter-warning" : undefined}>
+        {usage.unresolvedSteps > 0 ? "⚠ " : ""}
+        {count(usage.unresolvedSteps, "unresolved step")}
+      </strong>
+    </section>
+  );
+}
+
+function formatDuration(milliseconds: number): string {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}
+
+function count(value: number, singular: string): string {
+  return `${value} ${singular}${value === 1 ? "" : "s"}`;
 }
 
 function ParticipantChip({

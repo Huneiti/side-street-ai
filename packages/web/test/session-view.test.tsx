@@ -102,6 +102,41 @@ describe("the footer an Observer sees", () => {
   });
 });
 
+describe("the live session meter", () => {
+  it("shows active and wall-clock time and makes unresolved steps prominent", async () => {
+    const events = await seed();
+    events.push(
+      await appendEvent(events, {
+        authorId: "bob",
+        ts: 60_003,
+        body: { type: "human_message", payload: { text: "stop", delivery: "interrupt" } },
+      }),
+    );
+    events.push(
+      await appendEvent(events, {
+        authorId: "system",
+        ts: 600_003,
+        body: {
+          type: "step_unresolved",
+          payload: {
+            requestId: "perm-1",
+            stepId: "0123456789abcdef",
+            title: "Publish the release",
+            state: "approved_unfinished",
+          },
+        },
+      }),
+    );
+
+    const markup = render(events, "carol", "observer");
+    expect(markup).toContain("Steered by bob");
+    expect(markup).toContain("Active 1m");
+    expect(markup).toContain("Span 10m");
+    expect(markup).toContain("1 interrupt");
+    expect(markup).toContain('class="meter-warning">⚠ 1 unresolved step</strong>');
+  });
+});
+
 describe("the session header", () => {
   it("offers server-side hash-chain verification to every viewer", async () => {
     expect(render(await seed(), "carol", "observer")).toContain("Verify log");
