@@ -96,8 +96,19 @@ Swap in a real agent with one flag (`--agent claude-code`, `codex`, `gemini`) �
 
 ## License
 
-[AGPL-3.0](LICENSE). Side Street is and will remain open source: you can use it, self-host it,
-and modify it freely. The AGPL's network copyleft means anyone offering Side Street as a
-service must open-source their modifications — which keeps closed commercial resale off the
-table while keeping the project genuinely open. Commercial licensing for the hosted control
-plane is described in [`docs/PLAN.md`](docs/PLAN.md).
+**Everything in this repository is [AGPL-3.0](LICENSE)** — permanently open, freely
+self-hostable, with no feature held back. The multiplayer session layer _is_ the project, and it
+is all here.
+
+The AGPL's network copyleft means anyone who offers Side Street as a service must open-source
+their modifications. That keeps closed commercial resale off the table while keeping the project
+genuinely open to everyone else.
+
+**Where the commercial line falls, stated plainly:** the paid layer is a hosted control plane —
+managed infrastructure, SSO/SCIM, and compliance features — offered under a commercial license.
+It is not a feature-gated fork of this code; if it ever becomes one, this paragraph is the thing
+to hold us to. Contributors sign a CLA so that dual-licensing stays possible
+([`CONTRIBUTING.md`](CONTRIBUTING.md)), and what they contribute stays AGPL-3.0 forever.
+
+Being straight about this from the start is deliberate. A project that is vague about where the
+money is asks its community to find out later.
