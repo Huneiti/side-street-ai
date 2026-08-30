@@ -24,6 +24,7 @@ export function SessionView({
   onSteer,
   onHandoff,
   onDecide,
+  onVerify,
   onExport,
   onLeave,
 }: {
@@ -36,6 +37,7 @@ export function SessionView({
   onSteer(text: string, delivery: "queue" | "interrupt"): void;
   onHandoff(toParticipantId: string): void;
   onDecide(requestId: string, outcome: PermissionOutcome): void;
+  onVerify(): void;
   onExport(): void;
   onLeave(): void;
 }): ReactElement {
@@ -77,6 +79,9 @@ export function SessionView({
               onHandoff={canHandWheelTo(self, isDriver, p) ? onHandoff : undefined}
             />
           ))}
+          <button className="ghost" onClick={onVerify} title="Verify the stored hash chain">
+            Verify log
+          </button>
           <button className="ghost" onClick={onExport} title="Download the attributed timeline">
             Export
           </button>
@@ -273,12 +278,14 @@ function PermissionPrompt({
               {option.name}
             </button>
           ))}
-          <button
-            className="ghost"
-            onClick={() => onDecide(request.requestId, { kind: "cancelled" })}
-          >
-            Deny
-          </button>
+          {!request.options.some((option) => option.kind?.startsWith("reject")) && (
+            <button
+              className="ghost"
+              onClick={() => onDecide(request.requestId, { kind: "cancelled" })}
+            >
+              Deny
+            </button>
+          )}
         </div>
       ) : (
         <span className="approval-wait">awaiting the Driver's decision…</span>

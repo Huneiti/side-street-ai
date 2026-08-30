@@ -2,5 +2,6 @@ import type { Env } from "../src/session-do.js";
 
 declare module "cloudflare:test" {
   // Types the `env` the pool exposes to tests as the Worker's own bindings.
-  type ProvidedEnv = Env;
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- module augmentation requires an interface
+  interface ProvidedEnv extends Env {}
 }
