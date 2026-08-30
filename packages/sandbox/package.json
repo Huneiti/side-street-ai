@@ -20,7 +20,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src test",
-    "runner": "node --env-file-if-exists=../../.env dist/cli.js"
+    "runner": "node --env-file-if-exists=../../.env dist/cli.js",
+    "dev": "node dist/cli.js http://127.0.0.1:8787/session/demo . --agent stub"
   },
   "dependencies": {
     "@side-street/acp-client": "workspace:*",

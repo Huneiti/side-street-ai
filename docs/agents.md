@@ -15,11 +15,12 @@ The bridge runner spawns the agent and connects it to a session:
 runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] [-- <command...>]
 ```
 
-| `--agent`     | Spawns                                                |
-| ------------- | ----------------------------------------------------- |
-| `claude-code` | `npx @agentclientprotocol/claude-agent-acp` (default) |
-| `codex`       | `npx @zed-industries/codex-acp`                       |
-| `gemini`      | `npx @google/gemini-cli --acp`                        |
+| `--agent`     | Spawns                                                                 |
+| ------------- | ---------------------------------------------------------------------- |
+| `claude-code` | `npx @agentclientprotocol/claude-agent-acp` (default)                  |
+| `codex`       | `npx @zed-industries/codex-acp`                                        |
+| `gemini`      | `npx @google/gemini-cli --acp`                                         |
+| `stub`        | A canned agent in this repo — no credentials, for demos and `pnpm dev` |
 
 ```bash
 # The default
@@ -29,6 +30,12 @@ pnpm --filter @side-street/sandbox runner http://localhost:8787/session/demo ../
 pnpm --filter @side-street/sandbox runner http://localhost:8787/session/demo ../sample-repo \
   --agent gemini
 ```
+
+`stub` is not a real agent: canned replies over a real stdio pipe, so the whole product —
+streaming, mid-turn steering, hard-interrupt, the approval gate, the attributed log — can be
+run and demonstrated with no API key. It asks permission before anything that reads like a side
+effect (`deploy`, `delete`, `migrate`, …), which is what makes the Driver-only gate visible in a
+demo. The moment you want it to actually _do_ something, you want a real agent.
 
 The presets are a convenience, not the interface. Any ACP agent works — pass its command after
 `--`, and nothing else changes:

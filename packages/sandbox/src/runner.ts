@@ -11,6 +11,10 @@ import { AcpClient, AcpError, type PermissionOutcome } from "@side-street/acp-cl
 import { AgentBridge, type SessionSocket } from "./bridge.js";
 import { secretsFromEnv } from "./credentials.js";
 import { spawnAgent } from "./stdio.js";
+import { fileURLToPath } from "node:url";
+
+/** Ships beside the built runner, so `pnpm dev` needs no credentials. */
+const STUB_AGENT = fileURLToPath(new URL("./stub-agent.js", import.meta.url));
 
 /** What the runner tells the session it is. Declared, never verified. */
 export interface AgentIdentity {
@@ -80,6 +84,9 @@ export const AGENT_PRESETS = {
   "claude-code": ["npx", "--yes", "@agentclientprotocol/claude-agent-acp"],
   codex: ["npx", "--yes", "@zed-industries/codex-acp"],
   gemini: ["npx", "--yes", "@google/gemini-cli", "--acp"],
+  // Not a real agent: canned replies over a real stdio pipe, so the product
+  // can be run and demonstrated with no API key. See stub-agent.ts.
+  stub: ["node", STUB_AGENT],
 } as const satisfies Record<string, readonly string[]>;
 
 export type AgentName = keyof typeof AGENT_PRESETS;
@@ -204,13 +211,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     agent: handshake.agentInfo?.name ?? parsed.agent,
     version: handshake.agentInfo?.version,
   });
-  const ws = new WebSocket(wsUrl);
-  await new Promise<void>((resolve, reject) => {
-    ws.addEventListener("open", () => resolve(), { once: true });
-    ws.addEventListener("error", () => reject(new Error(`cannot connect to ${wsUrl}`)), {
-      once: true,
-    });
-  });
+  const ws = await openSessionSocket(wsUrl);
   ws.addEventListener("close", () => {
     // ponytail: exit on disconnect and rerun; the DO buffers prompts while
     // the bridge is away. In-process reconnect can come with the E2B adapter.
@@ -265,5 +266,33 @@ async function openSession(
         ...authMethods.map((method) => `  --auth ${method.id}   (${method.name})`),
       ].join("\n"),
     );
+  }
+}
+
+/**
+ * Connects to the session, retrying a refused connection for a few seconds.
+ * `pnpm dev` starts the Worker and this process together, and losing that
+ * race should not be the difference between a working demo and a stack trace.
+ * A socket that opens and later drops is a different matter: the bridge exits
+ * and is rerun, so the session sees a clean detach.
+ */
+async function openSessionSocket(wsUrl: string): Promise<WebSocket> {
+  const deadline = Date.now() + 15_000;
+  for (let attempt = 0; ; attempt++) {
+    const ws = new WebSocket(wsUrl);
+    const opened = await new Promise<boolean>((resolve) => {
+      ws.addEventListener("open", () => resolve(true), { once: true });
+      ws.addEventListener("error", () => resolve(false), { once: true });
+    });
+    if (opened) {
+      return ws;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`cannot connect to ${wsUrl}`);
+    }
+    if (attempt === 0) {
+      console.error(`waiting for ${wsUrl}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }

@@ -222,7 +222,7 @@ two different backing agents.
 _Goal: Side Street is a credible, adoptable open-source project with a public story._
 
 - [ ] README with 60-second demo GIF (the single highest-leverage marketing asset)
-- [ ] One-command local dev story (`pnpm dev` boots DO emulation + sandbox stub + web UI) and a hosted demo instance
+- [ ] One-command local dev story (`pnpm dev` boots DO emulation + sandbox stub + web UI) and a hosted demo instance — **`pnpm dev` is done**: one command brings up the Worker (DO emulation), the web UI, and a stub ACP agent that needs no credentials, with the bridge waiting out the startup race rather than losing it. Verified end to end — steer, stream, approval gate, Driver approves, tool runs, `/verify` valid, `/usage` reporting the steer — with no API key anywhere. The **hosted demo instance remains**, and it is gated on the authentication deliverable: v0 identity is unauthenticated query params, so a public instance would be a public session anyone can drive
 - [ ] Public roadmap (GitHub Projects mirroring this plan) + "good first issue" seeding
 - [ ] Versioning & releases: changesets, semver, signed tags, GitHub Releases with changelogs
 - [ ] Launch sequence: (1) soft-launch to the communities already asking for this — Claude Code issue #60082 thread, ACP community, Zed/Cursor discords; (2) Show HN with the demo; (3) launch blog post: _"Every coding agent solved single-user steering the same way. Nobody solved multiplayer. Here's how we did."_

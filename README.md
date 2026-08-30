@@ -9,27 +9,60 @@ own agent: it wraps Claude Code, Codex, Gemini CLI, and anything else that speak
 around them.
 
 > **Status: pre-alpha, but runnable.** We're building in public against a phased plan — see
-> [`docs/PLAN.md`](docs/PLAN.md).
+> [`docs/PLAN.md`](docs/PLAN.md). One command runs the whole thing with no API key; see below.
 >
-> **What works today (local dev):** two humans in separate browsers co-steer one live agent
-> session against a real coding agent over ACP — shared durable timeline, Driver/Navigator/Observer
-> roles, mid-turn steering, hard-interrupt, and "take the wheel" handoff. The session runs on a
+> **The collaboration layer (Phases 0–1).** Two humans in separate browsers co-steer one live
+> agent session over ACP — shared durable timeline, Driver/Navigator/Observer roles, mid-turn
+> steering, hard-interrupt, and directed "take the wheel" handoff. The session runs on a
 > Cloudflare Durable Object (SQLite event log + hibernating WebSockets) with offset-based
-> late-joiner replay, and a per-session E2B microVM adapter behind the swappable sandbox interface.
+> late-joiner replay, and a per-session E2B microVM behind the swappable sandbox interface.
 >
-> **Landed — the safety and durability layer (Phase 2):** an append-only, hash-chained event log
-> with a server-side verification endpoint; per-role secret **redaction** before every broadcast
-> _and_ every replay (Observers never see raw secrets); session-scoped credentials injected only
-> at sandbox boot and declared to the redaction pass; **Driver-only approval gates** on
-> side-effecting tools, with idempotency keys that warn before a step runs twice and report any
-> step an agent restart left unaccounted for; checkpoint compaction so late joiners load a bounded
-> tail instead of the whole log; reconnects that resume from a cursor; and a **red-team
-> prompt-injection suite** that runs in CI on every pull request.
+> **Safety and durability (Phase 2).** An append-only, hash-chained event log with a server-side
+> verification endpoint; per-role secret **redaction** before every broadcast _and_ every replay;
+> session-scoped credentials injected only at sandbox boot and declared to the redaction pass;
+> **Driver-only approval gates** on side-effecting tools, with idempotency keys that warn before
+> a step runs twice and report any step an agent restart left unaccounted for; checkpoint
+> compaction; reconnects that resume from a cursor; and a **red-team prompt-injection suite**
+> that runs in CI on every pull request and is never weakened to make a build pass.
+>
+> **The wedge (Phase 3).** A **Sentry** alert opens a session already carrying what broke, one
+> room per issue, signature-verified and failing closed. Sessions export as an **attributed
+> Markdown postmortem** carrying the chain tip, so the write-up can be checked against the log
+> rather than trusted. **Usage metering** is derived from the log rather than counted beside it.
+> **Structured ops logs** carry no content by construction, which a red-team fixture enforces.
+> The ACP client negotiates **authentication**, so a second backing agent attaches with a flag.
 >
 > **Not yet: authentication.** v0 identity is unauthenticated query params — do not expose a
-> deployment beyond dev. The Phase 2 exit benchmark passes locally (see
-> [`docs/benchmarks/phase-2.md`](docs/benchmarks/phase-2.md)); its 24-hour soak against a real
-> deployment has not been run. Not production-ready.
+> deployment beyond dev, and that is what gates a hosted demo. The Phase 2 exit benchmark passes
+> locally (see [`docs/benchmarks/phase-2.md`](docs/benchmarks/phase-2.md)); its 24-hour soak
+> against a real deployment has not been run. Phase 3's own benchmark — a pilot team running a
+> real incident — is the next gate. Not production-ready.
+
+## Run it
+
+No API key, no account, nothing to sign up for:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+That brings up the Durable Object emulator, the web UI on
+[localhost:5173](http://localhost:5173), and a **stub agent** — canned replies over a real ACP
+stdio pipe, so everything the product actually does is exercisable without a model behind it.
+
+Open the UI twice in two browser profiles, join session `demo` as **driver** and as
+**navigator**, and:
+
+- **take the wheel**, then steer — watch the reply stream into both windows
+- send a message from the Navigator — it lands as a _suggestion_, behind the Driver
+- **interrupt** mid-turn — the Driver alone can
+- ask it to `deploy the fix` — the approval gate opens, and only the wheel-holder can answer
+- hit **Export** — an attributed Markdown postmortem of everything that just happened
+- `curl localhost:8787/session/demo/verify` — the hash chain, checked server-side
+
+Swap in a real agent with one flag (`--agent claude-code`, `codex`, `gemini`) — see
+[`docs/agents.md`](docs/agents.md).
 
 ## Why
 
