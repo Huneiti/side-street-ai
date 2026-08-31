@@ -213,12 +213,16 @@ describe("an incident opening a session", () => {
 describe("an agent attaching", () => {
   it("logs what the bridge declared, attributed to the agent", async () => {
     const { store, actor } = await seededSession();
-    await actor.onAgentAttached({ agent: "gemini", version: "0.57.0" });
+    await actor.onAgentAttached({
+      agent: "gemini",
+      version: "0.57.0",
+      sandboxProvider: "local",
+    });
     const event = store.events.at(-1);
     expect(event?.authorId).toBe("agent");
     expect(event?.body).toEqual({
       type: "agent_attached",
-      payload: { agent: "gemini", version: "0.57.0" },
+      payload: { agent: "gemini", version: "0.57.0", sandboxProvider: "local" },
     });
   });
 

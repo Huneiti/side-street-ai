@@ -12,7 +12,8 @@ session at a different agent.
 The bridge runner spawns the agent and connects it to a session:
 
 ```bash
-runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] [-- <command...>]
+runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] \
+  [--sandbox-provider <name>] [-- <command...>]
 ```
 
 | `--agent`     | Spawns                                                                 |
@@ -29,6 +30,9 @@ pnpm --filter @side-street/sandbox runner http://localhost:8787/session/demo ../
 # Another agent, same session, same everything else
 pnpm --filter @side-street/sandbox runner http://localhost:8787/session/demo ../sample-repo \
   --agent gemini
+
+# The bridge is running in E2B rather than the default local process
+runner https://worker.example/session/demo /workspace --sandbox-provider e2b
 ```
 
 `stub` is not a real agent: canned replies over a real stdio pipe, so the whole product —
@@ -81,9 +85,10 @@ ahead of us degrades instead of breaking the session.
 
 **Recorded.** The bridge declares what it is when it connects, and the session logs it as
 `agent_attached` — from the agent's own ACP `agentInfo` when it reports one, otherwise the
-name you asked for. An exported transcript therefore names the agent that actually ran, marked
-as self-declared, because a sandbox reporting on itself is exactly as trustworthy as that
-sounds.
+name you asked for. It also declares the sandbox provider (`local` by default, or the value of
+`--sandbox-provider`). An exported transcript therefore names the agent and sandbox that
+actually ran, marked as self-declared, because a sandbox reporting on itself is exactly as
+trustworthy as that sounds.
 
 **Not yet.** Prompts are text-only content blocks: an agent advertising image or audio prompt
 capabilities gets text anyway.

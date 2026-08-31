@@ -90,11 +90,13 @@ describe("session lifecycle over WebSocket", () => {
     const alice = await connect(viewerPath(sessionId, "alice", "driver"));
     await alice.waitFor((f) => f["type"] === "welcome");
 
-    await connect(`/session/${sessionId}/agent?agent=gemini&agentVersion=0.57.0`);
+    await connect(
+      `/session/${sessionId}/agent?agent=gemini&agentVersion=0.57.0&sandboxProvider=local`,
+    );
     const attached = (await alice.waitFor(isEventOf("agent_attached")))["event"] as SignedEvent;
     expect(attached.body).toEqual({
       type: "agent_attached",
-      payload: { agent: "gemini", version: "0.57.0" },
+      payload: { agent: "gemini", version: "0.57.0", sandboxProvider: "local" },
     });
     // Attributed to the agent socket, because that is who said it.
     expect(attached.authorId).toBe("agent");

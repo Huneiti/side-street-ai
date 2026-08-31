@@ -57,13 +57,17 @@ describe("transcript header", () => {
       started,
       {
         authorId: "agent",
-        body: { type: "agent_attached", payload: { agent: "gemini", version: "0.57.0" } },
+        body: {
+          type: "agent_attached",
+          payload: { agent: "gemini", version: "0.57.0", sandboxProvider: "local" },
+        },
       },
     ]);
     const md = toMarkdown(events);
     // `session_started` says claude-code; the bridge that turned up says otherwise.
     expect(md).toContain("**Agent:** `gemini 0.57.0`");
-    expect(md).toContain("agent attached: `gemini 0.57.0` (self-declared)");
+    expect(md).toContain("**Sandbox:** `local`");
+    expect(md).toContain("agent attached: `gemini 0.57.0` via `local` (self-declared)");
   });
 
   it("falls back to the expected agent when no bridge declared itself", async () => {

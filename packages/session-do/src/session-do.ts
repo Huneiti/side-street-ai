@@ -327,7 +327,11 @@ export class SessionDurableObject extends DurableObject<Env> {
     await this.actor.onAgentAttached(
       declared.data.agent === undefined
         ? undefined
-        : { agent: declared.data.agent, version: declared.data.agentVersion },
+        : {
+            agent: declared.data.agent,
+            version: declared.data.agentVersion,
+            sandboxProvider: declared.data.sandboxProvider,
+          },
     );
     await this.persistState();
     this.flushOutbox(server);
@@ -337,6 +341,7 @@ export class SessionDurableObject extends DurableObject<Env> {
     this.log.info("agent.attached", {
       agent: declared.data.agent,
       version: declared.data.agentVersion,
+      sandboxProvider: declared.data.sandboxProvider,
       queuedPrompts: this.outbox.length,
     });
     return this.upgrade(request, client);
