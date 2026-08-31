@@ -38,6 +38,8 @@ export interface UsageSummary {
   sessionId: string | undefined;
   /** The agent that attached, as it declared itself; undefined if none did. */
   agent: string | undefined;
+  /** The sandbox provider the bridge declared, falling back to the session expectation. */
+  sandboxProvider: string | undefined;
   firstEventAt: number | undefined;
   lastEventAt: number | undefined;
   /** Wall-clock first event to last: what the session spanned. */
@@ -85,6 +87,7 @@ export function summarizeUsage(
   const summary: UsageSummary = {
     sessionId: undefined,
     agent: undefined,
+    sandboxProvider: undefined,
     firstEventAt: events[0]?.ts,
     lastEventAt: events[events.length - 1]?.ts,
     spanMs: 0,
@@ -118,9 +121,11 @@ export function summarizeUsage(
     switch (body.type) {
       case "session_started":
         summary.sessionId = body.payload.sessionId;
+        summary.sandboxProvider = body.payload.sandboxProvider;
         break;
       case "agent_attached":
         summary.agent = body.payload.agent;
+        summary.sandboxProvider = body.payload.sandboxProvider ?? summary.sandboxProvider;
         break;
       case "participant_joined":
         participants.add(body.payload.participantId);
