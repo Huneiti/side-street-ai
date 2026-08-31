@@ -252,7 +252,9 @@ describe("authority under injection", () => {
     // could not be redacted-and-parsed would take the session's outbound side
     // down — live and on every replay after it.
     const hostile = "KEY=v ".repeat(21).trim();
-    await connect(`/session/${sessionId}/agent?agent=${encodeURIComponent(hostile)}`);
+    await connect(
+      `/session/${sessionId}/agent?agent=${encodeURIComponent(hostile)}&sandboxProvider=${encodeURIComponent(hostile)}`,
+    );
     const attached = (await alice.waitFor(isEventOf("agent_attached")))["event"] as SignedEvent;
     expect(JSON.stringify(attached)).not.toContain("KEY=v");
 
