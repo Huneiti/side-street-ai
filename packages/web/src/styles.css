@@ -6,6 +6,8 @@
   --text: #e7e9ee;
   --dim: #8b93a3;
   --accent: #5b9dff;
+  --success: #66d9a0;
+  --warning: #f0c36d;
   --danger: #ff6b6b;
   font-family:
     ui-sans-serif,
@@ -249,10 +251,25 @@ button.chip-handoff:hover {
 .notice {
   margin: 0 16px 8px;
   padding: 8px 12px;
-  border: 1px solid var(--danger);
+  border: 1px solid currentColor;
   border-radius: 8px;
-  color: var(--danger);
   font-size: 13px;
+}
+
+.notice-info {
+  color: var(--accent);
+}
+
+.notice-success {
+  color: var(--success);
+}
+
+.notice-warning {
+  color: var(--warning);
+}
+
+.notice-error {
+  color: var(--danger);
 }
 
 .approvals {
