@@ -20,6 +20,7 @@ const STUB_AGENT = fileURLToPath(new URL("./stub-agent.js", import.meta.url));
 export interface AgentIdentity {
   agent: string;
   version?: string | undefined;
+  sandboxProvider?: string | undefined;
 }
 
 /**
@@ -39,6 +40,9 @@ export function agentSocketUrl(sessionUrl: string, identity?: AgentIdentity): st
     url.searchParams.set("agent", identity.agent);
     if (identity.version !== undefined) {
       url.searchParams.set("agentVersion", identity.version);
+    }
+    if (identity.sandboxProvider !== undefined) {
+      url.searchParams.set("sandboxProvider", identity.sandboxProvider);
     }
   }
   return url.toString();
@@ -92,6 +96,7 @@ export const AGENT_PRESETS = {
 export type AgentName = keyof typeof AGENT_PRESETS;
 
 export const DEFAULT_AGENT: AgentName = "claude-code";
+export const DEFAULT_SANDBOX_PROVIDER = "local";
 
 export interface RunnerArgs {
   sessionUrl: string;
@@ -101,10 +106,12 @@ export interface RunnerArgs {
   command: readonly string[];
   /** Auth method to present before opening a session, if the agent wants one. */
   authMethodId: string | undefined;
+  /** Where this bridge says it is running. Declared, never verified. */
+  sandboxProvider: string;
 }
 
 /**
- * `runner <session-url> <workspace> [--agent <name>] [--auth <methodId>] [-- <command...>]`
+ * `runner <session-url> <workspace> [--agent <name>] [--auth <methodId>] [--sandbox-provider <name>] [-- <command...>]`
  *
  * A bare trailing command with no `--` is still accepted: that was the
  * original form, and the Phase 1 benchmark runbook uses it.
@@ -113,6 +120,7 @@ export function parseArgs(argv: readonly string[]): RunnerArgs | undefined {
   const positional: string[] = [];
   let agent: string | undefined;
   let authMethodId: string | undefined;
+  let sandboxProvider = DEFAULT_SANDBOX_PROVIDER;
   let command: readonly string[] | undefined;
 
   for (let i = 0; i < argv.length; i++) {
@@ -121,13 +129,15 @@ export function parseArgs(argv: readonly string[]): RunnerArgs | undefined {
       command = argv.slice(i + 1);
       break;
     }
-    if (arg === "--agent" || arg === "--auth") {
+    if (arg === "--agent" || arg === "--auth" || arg === "--sandbox-provider") {
       const value = argv[i + 1];
       if (value === undefined) {
         return undefined;
       }
       if (arg === "--agent") {
         agent = value;
+      } else if (arg === "--sandbox-provider") {
+        sandboxProvider = value;
       } else {
         authMethodId = value;
       }
@@ -151,11 +161,11 @@ export function parseArgs(argv: readonly string[]): RunnerArgs | undefined {
   if (resolved === undefined || resolved.length === 0) {
     return undefined;
   }
-  return { sessionUrl, workspace, agent: name, command: resolved, authMethodId };
+  return { sessionUrl, workspace, agent: name, command: resolved, authMethodId, sandboxProvider };
 }
 
 const USAGE = [
-  "Usage: runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] [-- <command...>]",
+  "Usage: runner <session-url> <workspace-dir> [--agent <name>] [--auth <methodId>] [--sandbox-provider <name>] [-- <command...>]",
   `  agents: ${Object.keys(AGENT_PRESETS).join(", ")} (default: ${DEFAULT_AGENT})`,
   "  e.g. runner http://localhost:8787/session/demo ../sample-repo --agent codex",
 ].join("\n");
@@ -210,6 +220,7 @@ export async function main(argv: readonly string[]): Promise<void> {
   const wsUrl = agentSocketUrl(sessionUrl, {
     agent: handshake.agentInfo?.name ?? parsed.agent,
     version: handshake.agentInfo?.version,
+    sandboxProvider: parsed.sandboxProvider,
   });
   const ws = await openSessionSocket(wsUrl);
   ws.addEventListener("close", () => {
