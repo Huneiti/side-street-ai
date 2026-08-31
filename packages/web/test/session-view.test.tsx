@@ -17,9 +17,7 @@ import {
 } from "@side-street/core";
 import { SessionView, type Notice } from "../src/SessionView.js";
 
-async function log(
-  entries: Array<{ authorId: string; body: EventBody }>,
-): Promise<SignedEvent[]> {
+async function log(entries: Array<{ authorId: string; body: EventBody }>): Promise<SignedEvent[]> {
   const events: SignedEvent[] = [];
   let ts = 0;
   for (const { authorId, body } of entries) {
@@ -80,19 +78,14 @@ describe("session notices", () => {
   it.each(["info", "success", "warning", "error"] as const)(
     "renders %s with its own severity class",
     async (kind) => {
-      const markup = render(await seed(), "alice", "driver", {
-        text: "A notice",
-        kind,
-      });
+      const markup = render(await seed(), "alice", "driver", { text: "A notice", kind });
       expect(markup).toContain(`class="notice notice-${kind}"`);
       expect(markup).toContain("A notice");
     },
   );
 });
 
-async function withPermission(
-  options: PermissionOption[],
-): Promise<SignedEvent[]> {
+async function withPermission(options: PermissionOption[]): Promise<SignedEvent[]> {
   const events = await seed();
   events.push(
     await appendEvent(events, {
@@ -132,10 +125,7 @@ describe("the live session meter", () => {
       await appendEvent(events, {
         authorId: "bob",
         ts: 60_003,
-        body: {
-          type: "human_message",
-          payload: { text: "stop", delivery: "interrupt" },
-        },
+        body: { type: "human_message", payload: { text: "stop", delivery: "interrupt" } },
       }),
     );
     events.push(
@@ -159,9 +149,7 @@ describe("the live session meter", () => {
     expect(markup).toContain("Active 1m");
     expect(markup).toContain("Span 10m");
     expect(markup).toContain("1 interrupt");
-    expect(markup).toContain(
-      'class="meter-warning">⚠ 1 unresolved step</strong>',
-    );
+    expect(markup).toContain('class="meter-warning">⚠ 1 unresolved step</strong>');
   });
 });
 
@@ -218,9 +206,7 @@ describe("permission controls", () => {
 
   it("keeps the cancellation Deny when the agent offers no reject option", async () => {
     const markup = render(
-      await withPermission([
-        { optionId: "allow", name: "Allow once", kind: "allow_once" },
-      ]),
+      await withPermission([{ optionId: "allow", name: "Allow once", kind: "allow_once" }]),
       "alice",
       "driver",
     );
