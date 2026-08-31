@@ -70,6 +70,13 @@ Open the UI twice in two browser profiles, join session `demo` as **driver** and
 - **interrupt** mid-turn — the Driver alone can
 - ask it to `deploy the fix` — the approval gate opens, and only the wheel-holder can answer
 - hit **Export** — an attributed Markdown postmortem of everything that just happened
+
+The same full, Observer-redacted artifact is available from a terminal:
+
+```bash
+pnpm --filter @side-street/sandbox transcript http://localhost:8787/session/demo > postmortem.md
+```
+
 - `curl localhost:8787/session/demo/verify` — the hash chain, checked server-side
 
 Swap in a real agent with one flag (`--agent claude-code`, `codex`, `gemini`) — see
