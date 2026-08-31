@@ -117,6 +117,7 @@ export type AgentServerFrame = z.infer<typeof agentServerFrameSchema>;
 export const agentAttachParamsSchema = z.object({
   agent: z.string().min(1).max(128).optional(),
   agentVersion: z.string().min(1).max(64).optional(),
+  sandboxProvider: z.string().min(1).max(128).optional(),
 });
 export type AgentAttachParams = z.infer<typeof agentAttachParamsSchema>;
 
