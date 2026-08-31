@@ -83,23 +83,13 @@ export function SessionView({
               key={p.id}
               participant={p}
               isWheelHolder={p.id === driverId}
-              onHandoff={
-                canHandWheelTo(self, isDriver, p) ? onHandoff : undefined
-              }
+              onHandoff={canHandWheelTo(self, isDriver, p) ? onHandoff : undefined}
             />
           ))}
-          <button
-            className="ghost"
-            onClick={onVerify}
-            title="Verify the stored hash chain"
-          >
+          <button className="ghost" onClick={onVerify} title="Verify the stored hash chain">
             Verify log
           </button>
-          <button
-            className="ghost"
-            onClick={onExport}
-            title="Download the attributed timeline"
-          >
+          <button className="ghost" onClick={onExport} title="Download the attributed timeline">
             Export
           </button>
           <button className="ghost" onClick={onLeave}>
@@ -130,17 +120,11 @@ export function SessionView({
         </section>
       )}
 
-      {notice !== null && (
-        <div className={`notice notice-${notice.kind}`}>{notice.text}</div>
-      )}
+      {notice !== null && <div className={`notice notice-${notice.kind}`}>{notice.text}</div>}
 
       <footer>
         {controls.canClaimWheel && (
-          <button
-            className="ghost"
-            onClick={() => onHandoff(self)}
-            title="Become the Driver"
-          >
+          <button className="ghost" onClick={() => onHandoff(self)} title="Become the Driver">
             🛞 Take the wheel
           </button>
         )}
@@ -157,9 +141,7 @@ export function SessionView({
                   submit("queue");
                 }
               }}
-              placeholder={
-                isDriver ? "Steer the agent…" : "Suggest to the driver…"
-              }
+              placeholder={isDriver ? "Steer the agent…" : "Suggest to the driver…"}
             />
             <button onClick={() => submit("queue")}>Send</button>
             {controls.canInterrupt && (
@@ -182,9 +164,7 @@ function SessionMeter({ usage }: { usage: UsageSummary }): ReactElement {
   return (
     <section className="session-meter" aria-label="Session usage">
       <strong>
-        {usage.steered
-          ? `Steered by ${usage.steerers.join(", ")}`
-          : "Not steered yet"}
+        {usage.steered ? `Steered by ${usage.steerers.join(", ")}` : "Not steered yet"}
       </strong>
       <span>Active {formatDuration(usage.activeMs)}</span>
       <span>Span {formatDuration(usage.spanMs)}</span>
@@ -195,9 +175,7 @@ function SessionMeter({ usage }: { usage: UsageSummary }): ReactElement {
       <span>
         {usage.approvals.granted} approved · {usage.approvals.denied} denied
       </span>
-      <strong
-        className={usage.unresolvedSteps > 0 ? "meter-warning" : undefined}
-      >
+      <strong className={usage.unresolvedSteps > 0 ? "meter-warning" : undefined}>
         {usage.unresolvedSteps > 0 ? "⚠ " : ""}
         {count(usage.unresolvedSteps, "unresolved step")}
       </strong>
@@ -231,10 +209,7 @@ function ParticipantChip({
   const label = `${isWheelHolder ? "🛞 " : ""}${participant.displayName}`;
   if (onHandoff === undefined) {
     return (
-      <span
-        className={`chip chip-${participant.role}`}
-        title={participant.role}
-      >
+      <span className={`chip chip-${participant.role}`} title={participant.role}>
         {label}
       </span>
     );
@@ -256,9 +231,7 @@ function TimelineRow({ item }: { item: TimelineItem }): ReactElement {
       return <div className="row agent">{item.text}</div>;
     case "human":
       return (
-        <div
-          className={`row human ${item.steering ? "human-steering" : "human-suggestion"}`}
-        >
+        <div className={`row human ${item.steering ? "human-steering" : "human-suggestion"}`}>
           <span className="author">
             {item.authorId}
             {item.steering ? "" : " (suggestion)"}
@@ -295,10 +268,8 @@ function PermissionPrompt({
       {request.priorAttempts > 0 && (
         <span className="approval-repeat">
           ⚠ this session already ran this exact step{" "}
-          {request.priorAttempts === 1
-            ? "once"
-            : `${request.priorAttempts} times`}{" "}
-          — approving again runs it again
+          {request.priorAttempts === 1 ? "once" : `${request.priorAttempts} times`} — approving
+          again runs it again
         </span>
       )}
       {isDriver ? (
@@ -317,9 +288,7 @@ function PermissionPrompt({
               {option.name}
             </button>
           ))}
-          {!request.options.some((option) =>
-            option.kind?.startsWith("reject"),
-          ) && (
+          {!request.options.some((option) => option.kind?.startsWith("reject")) && (
             <button
               className="ghost"
               onClick={() => onDecide(request.requestId, { kind: "cancelled" })}

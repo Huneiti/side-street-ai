@@ -1,16 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactElement,
-} from "react";
-import {
-  roleSchema,
-  type PermissionOutcome,
-  type Role,
-  type SignedEvent,
-} from "@side-street/core";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { roleSchema, type PermissionOutcome, type Role, type SignedEvent } from "@side-street/core";
 import { SessionClient, type SessionStatus } from "./lib/session-client.js";
 import { joinDefaultsFromUrl, type JoinDefaults } from "./lib/join-url.js";
 import {
@@ -97,10 +86,7 @@ function JoinForm({
         </label>
         <label>
           Session
-          <input
-            value={sessionId}
-            onChange={(e) => setSessionId(e.target.value)}
-          />
+          <input value={sessionId} onChange={(e) => setSessionId(e.target.value)} />
         </label>
         <label>
           Your name
@@ -112,10 +98,7 @@ function JoinForm({
           />
         </label>
         <label>
-          Session token{" "}
-          <span className="hint">
-            optional; verified deployments require one
-          </span>
+          Session token <span className="hint">optional; verified deployments require one</span>
           <input
             value={token}
             onChange={(e) => setToken(e.target.value)}
@@ -126,10 +109,7 @@ function JoinForm({
         </label>
         <label>
           Role
-          <select
-            value={role}
-            onChange={(e) => setRole(roleSchema.parse(e.target.value))}
-          >
+          <select value={role} onChange={(e) => setRole(roleSchema.parse(e.target.value))}>
             <option value="driver">Driver — steer and approve</option>
             <option value="navigator">Navigator — suggest</option>
             <option value="observer">Observer — watch</option>
@@ -141,31 +121,21 @@ function JoinForm({
   );
 }
 
-function Session({
-  details,
-  onLeave,
-}: {
-  details: JoinDetails;
-  onLeave(): void;
-}): ReactElement {
+function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }): ReactElement {
   const [events, setEvents] = useState<SignedEvent[]>([]);
   const [status, setStatus] = useState<SessionStatus>("connecting");
   const [notice, setNoticeState] = useState<Notice | null>(null);
   const clientRef = useRef<SessionClient | null>(null);
 
-  const setNotice = useCallback(
-    (text: string | null, kind: NoticeKind = "error"): void => {
-      setNoticeState(text === null ? null : { text, kind });
-    },
-    [],
-  );
+  const setNotice = useCallback((text: string | null, kind: NoticeKind = "error"): void => {
+    setNoticeState(text === null ? null : { text, kind });
+  }, []);
 
   // Issue #56: the server is prefillable from a link, so a crafted one could
   // point this app at another host. It may select a server; it may not make us
   // hand a credential to it.
   const present =
-    details.token !== undefined &&
-    mayPresentTokenTo(details.baseUrl, window.location.origin);
+    details.token !== undefined && mayPresentTokenTo(details.baseUrl, window.location.origin);
 
   useEffect(() => {
     if (details.token !== undefined && !present) {
@@ -217,20 +187,15 @@ function Session({
     setNotice(null);
     clientRef.current?.takeWheel(toParticipantId);
   }, []);
-  const decide = useCallback(
-    (requestId: string, outcome: PermissionOutcome) => {
-      setNotice(null);
-      clientRef.current?.decide(requestId, outcome);
-    },
-    [],
-  );
+  const decide = useCallback((requestId: string, outcome: PermissionOutcome) => {
+    setNotice(null);
+    clientRef.current?.decide(requestId, outcome);
+  }, []);
   const exportTranscript = useCallback(() => {
     setNotice(null);
     clientRef.current
       ?.transcript()
-      .then((markdown) =>
-        download(`side-street-${details.sessionId}.md`, markdown),
-      )
+      .then((markdown) => download(`side-street-${details.sessionId}.md`, markdown))
       .catch((error: unknown) => {
         setNotice(error instanceof Error ? error.message : String(error));
       });
