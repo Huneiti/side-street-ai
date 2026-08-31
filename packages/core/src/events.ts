@@ -119,6 +119,8 @@ export const eventBodySchema = z.discriminatedUnion("type", [
       agent: z.string().min(1).max(128),
       /** From the ACP handshake's `agentInfo`, when the agent reports one. */
       version: z.string().min(1).max(64).optional(),
+      /** Where the bridge says it is running, e.g. "local" or "e2b". */
+      sandboxProvider: z.string().min(1).max(128).optional(),
     }),
   }),
   /**
