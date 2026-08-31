@@ -63,7 +63,9 @@ export function toMarkdown(
   const toolEntries = new Map<string, { index: number; title: string }>();
   let started: { sessionId: string; agent: string; sandboxProvider: string } | undefined;
   /** What actually attached, if anything did — see `agent_attached`. */
-  let attached: { agent: string; version?: string | undefined } | undefined;
+  let attached:
+    | { agent: string; version?: string | undefined; sandboxProvider?: string | undefined }
+    | undefined;
   /** The alert this session was opened for, if an integration linked one. */
   let incident: IncidentLine | undefined;
   let driverId: string | null = null;
@@ -98,8 +100,12 @@ export function toMarkdown(
       case "agent_attached": {
         attached = body.payload;
         const version = body.payload.version === undefined ? "" : ` ${body.payload.version}`;
+        const sandbox =
+          body.payload.sandboxProvider === undefined
+            ? ""
+            : ` via ${code(body.payload.sandboxProvider)}`;
         entries.push(
-          `${at} **system** · agent attached: ${code(`${body.payload.agent}${version}`)} (self-declared)`,
+          `${at} **system** · agent attached: ${code(`${body.payload.agent}${version}`)}${sandbox} (self-declared)`,
         );
         break;
       }
@@ -256,7 +262,9 @@ export function toMarkdown(
 function header(
   events: readonly SignedEvent[],
   started: { sessionId: string; agent: string; sandboxProvider: string } | undefined,
-  attached: { agent: string; version?: string | undefined } | undefined,
+  attached:
+    | { agent: string; version?: string | undefined; sandboxProvider?: string | undefined }
+    | undefined,
   incident: IncidentLine | undefined,
   roster: Map<string, { displayName: string; role: Role }>,
 ): string {
@@ -274,7 +282,8 @@ function header(
       attached === undefined
         ? started.agent
         : `${attached.agent}${attached.version === undefined ? "" : ` ${attached.version}`}`;
-    lines.push(`- **Agent:** ${code(agent)} · **Sandbox:** ${code(started.sandboxProvider)}`);
+    const sandbox = attached?.sandboxProvider ?? started.sandboxProvider;
+    lines.push(`- **Agent:** ${code(agent)} · **Sandbox:** ${code(sandbox)}`);
   }
   if (first === undefined || last === undefined) {
     lines.push("- **Events:** none — this session has no log to show.", "");

@@ -29,23 +29,23 @@ position. A log tail can be verified independently given the hash of the event p
 
 ## Event types
 
-| Type                  | Author        | Payload (summary)                                                                 |
-| --------------------- | ------------- | --------------------------------------------------------------------------------- |
-| `session_started`     | system        | `sessionId`, `agent`, `sandboxProvider`                                           |
-| `agent_attached`      | agent         | `agent`, optional `version` — **self-declared** by the connecting bridge          |
-| `participant_joined`  | the joiner    | `participantId`, `displayName`, `role`                                            |
-| `participant_left`    | the leaver    | `participantId`                                                                   |
-| `role_changed`        | actor causing | `participantId`, new `role`                                                       |
-| `control_handoff`     | requester     | `fromParticipantId`, `toParticipantId`                                            |
-| `human_message`       | the human     | `text`, `delivery: "queue" \| "interrupt"`                                        |
-| `agent_message_chunk` | agent         | `text` (token-level streaming)                                                    |
-| `tool_call`           | agent         | `toolCallId`, `title`, `status`                                                   |
-| `tool_call_update`    | agent         | `toolCallId`, `status`, optional `output`                                         |
-| `permission_request`  | agent         | `requestId`, `toolCallId`, `title`, `options[]`, `stepId`, `priorAttempts`        |
-| `permission_decision` | the Driver    | `requestId`, `outcome` (selected optionId or cancelled), `idempotencyKey?`        |
-| `turn_ended`          | agent         | `stopReason: end_turn \| max_tokens \| refusal \| cancelled`                      |
-| `step_unresolved`     | system        | `requestId`, `stepId`, `title`, `state`, optional `idempotencyKey`                |
-| `checkpoint`          | system        | `summary`, `roster[]`, `driverId`, `pendingPermissions[]`, optional `snapshotRef` |
+| Type                  | Author        | Payload (summary)                                                                              |
+| --------------------- | ------------- | ---------------------------------------------------------------------------------------------- |
+| `session_started`     | system        | `sessionId`, `agent`, `sandboxProvider`                                                        |
+| `agent_attached`      | agent         | `agent`, optional `version` and `sandboxProvider` — **self-declared** by the connecting bridge |
+| `participant_joined`  | the joiner    | `participantId`, `displayName`, `role`                                                         |
+| `participant_left`    | the leaver    | `participantId`                                                                                |
+| `role_changed`        | actor causing | `participantId`, new `role`                                                                    |
+| `control_handoff`     | requester     | `fromParticipantId`, `toParticipantId`                                                         |
+| `human_message`       | the human     | `text`, `delivery: "queue" \| "interrupt"`                                                     |
+| `agent_message_chunk` | agent         | `text` (token-level streaming)                                                                 |
+| `tool_call`           | agent         | `toolCallId`, `title`, `status`                                                                |
+| `tool_call_update`    | agent         | `toolCallId`, `status`, optional `output`                                                      |
+| `permission_request`  | agent         | `requestId`, `toolCallId`, `title`, `options[]`, `stepId`, `priorAttempts`                     |
+| `permission_decision` | the Driver    | `requestId`, `outcome` (selected optionId or cancelled), `idempotencyKey?`                     |
+| `turn_ended`          | agent         | `stopReason: end_turn \| max_tokens \| refusal \| cancelled`                                   |
+| `step_unresolved`     | system        | `requestId`, `stepId`, `title`, `state`, optional `idempotencyKey`                             |
+| `checkpoint`          | system        | `summary`, `roster[]`, `driverId`, `pendingPermissions[]`, optional `snapshotRef`              |
 
 Tool-call statuses: `pending`, `in_progress`, `completed`, `failed`, `cancelled`.
 
@@ -213,14 +213,15 @@ refused, and so is an unauthenticated attach. Without this the socket lets anyon
 sandbox: stream fabricated agent output, and raise permission requests a Driver is then asked
 to approve.
 
-**Identity**: the bridge declares what it is in the socket's query string
-(`/agent?agent=gemini&agentVersion=0.57.0`), which is logged as `agent_attached`. Both are
-optional — a bridge that declares nothing leaves the agent unrecorded rather than
-misrecorded. It is a self-report from the least trustworthy speaker in the session, so the
-log records that the thing on the agent socket _claimed_ this, and readers present it as
-declared. `session_started` still carries the agent the session expected, written before any
-bridge existed; `agent_attached` is what actually turned up, and a session whose agent died
-and was replaced has one of each attach rather than one overwritten field.
+**Identity**: the bridge declares what it is and where it is running in the socket's query
+string (`/agent?agent=gemini&agentVersion=0.57.0&sandboxProvider=e2b`), which is logged as
+`agent_attached`. The fields are optional — a bridge that declares nothing leaves its identity
+unrecorded rather than misrecorded. It is a self-report from the least trustworthy speaker in
+the session, so the log records that the thing on the agent socket _claimed_ this, and readers
+present it as declared. `session_started` still carries the agent and sandbox the session
+expected, written before any bridge existed; `agent_attached` is what actually turned up, and a
+session whose bridge died and was replaced has one of each attach rather than one overwritten
+field.
 
 **Author restriction**: the sandbox is the least trustworthy speaker in a session — a prompt
 injection lands there first, and an injected agent controls the process holding this socket.

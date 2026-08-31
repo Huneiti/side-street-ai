@@ -41,6 +41,7 @@ export interface RosterEntry {
 export interface AgentIdentity {
   agent: string;
   version?: string | undefined;
+  sandboxProvider?: string | undefined;
 }
 
 export interface SessionActorDeps {
@@ -273,6 +274,9 @@ export class SessionActor {
         payload: {
           agent: identity.agent,
           ...(identity.version === undefined ? {} : { version: identity.version }),
+          ...(identity.sandboxProvider === undefined
+            ? {}
+            : { sandboxProvider: identity.sandboxProvider }),
         },
       });
     }
