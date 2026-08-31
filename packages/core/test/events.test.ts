@@ -9,6 +9,10 @@ describe("eventBodySchema", () => {
         payload: { sessionId: "s1", agent: "claude-code", sandboxProvider: "e2b" },
       },
       {
+        type: "agent_attached",
+        payload: { agent: "gemini", version: "0.57.0", sandboxProvider: "local" },
+      },
+      {
         type: "participant_joined",
         payload: { participantId: "p1", displayName: "Alice", role: "observer" },
       },
