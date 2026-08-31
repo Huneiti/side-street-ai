@@ -27,8 +27,11 @@ describe("agentSocketUrl identity", () => {
       agentSocketUrl("http://localhost:8787/session/demo", {
         agent: "gemini",
         version: "0.57.0",
+        sandboxProvider: "e2b",
       }),
-    ).toBe("ws://localhost:8787/session/demo/agent?agent=gemini&agentVersion=0.57.0");
+    ).toBe(
+      "ws://localhost:8787/session/demo/agent?agent=gemini&agentVersion=0.57.0&sandboxProvider=e2b",
+    );
   });
 
   it("omits a version the agent did not report", () => {
@@ -88,6 +91,7 @@ describe("parseArgs", () => {
       agent: "claude-code",
       command: AGENT_PRESETS["claude-code"],
       authMethodId: undefined,
+      sandboxProvider: "local",
     });
   });
 
@@ -115,6 +119,13 @@ describe("parseArgs", () => {
       agent: "codex",
       command: AGENT_PRESETS.codex,
       authMethodId: "oauth",
+    });
+  });
+
+  it("declares a non-local sandbox provider without putting it in the agent command", () => {
+    expect(parseArgs([...base, "--sandbox-provider", "e2b", "--agent", "codex"])).toMatchObject({
+      sandboxProvider: "e2b",
+      command: AGENT_PRESETS.codex,
     });
   });
 
