@@ -311,3 +311,8 @@ button.chip-handoff:hover {
   color: var(--dim);
   font-size: 13px;
 }
+
+.join .hint {
+  color: var(--dim);
+  font-weight: 400;
+}

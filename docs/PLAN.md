@@ -245,10 +245,12 @@ rather than the session model._
       self-host, asymmetric + JWKS for the hosted control plane's SSO — the symmetric half
       ships as a mint command (`pnpm --filter @side-street/sandbox token`); the interface and
       the asymmetric issuer behind it are what remain
-- [ ] Clients present tokens — the **bridge runner does**, from `SIDE_STREET_SESSION_TOKEN`
-      in its boot environment. The **web viewer does not**, so a deployment that configures a
-      secret still locks out its browsers; that and issue #56 (a `?server=` link must not be
-      able to redirect a credential) are the remaining half
+- [x] Clients present tokens — the bridge runner from `SIDE_STREET_SESSION_TOKEN` in its
+      boot environment, and the web viewer from a URL fragment (never a query string, so the
+      credential stays out of access logs and `Referer`), read once and stripped from the
+      address bar. A token is sent only to the page's own origin or the one
+      `VITE_SIDE_STREET_SERVER` names, so a `?server=` link can select a server but cannot
+      redirect a credential to it (issue #56)
 - [x] Tokens in the WebSocket subprotocol rather than the query string, so a credential never
       reaches an edge access log (`docs/ops.md` promises logs carry no secrets) — the selected
       protocol is echoed back, which a browser requires

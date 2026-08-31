@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 import { roleSchema, type PermissionOutcome, type Role, type SignedEvent } from "@side-street/core";
 import { SessionClient, type SessionStatus } from "./lib/session-client.js";
 import { joinDefaultsFromUrl, type JoinDefaults } from "./lib/join-url.js";
+import {
+  WITHHELD_REASON,
+  credentialFromHash,
+  mayPresentTokenTo,
+  stripCredentialFromUrl,
+} from "./lib/session-credential.js";
 import { SessionView } from "./SessionView.js";
 
 interface JoinDetails {
@@ -9,12 +15,33 @@ interface JoinDetails {
   sessionId: string;
   participantId: string;
   role: Role;
+  /** Session token, if this viewer has one (ADR-0005). */
+  token?: string | undefined;
 }
 
 export function App(): ReactElement {
   const [details, setDetails] = useState<JoinDetails | null>(null);
+  // Read once, on the way in. The token then lives in memory for the life of
+  // the tab and leaves the address bar immediately: not over a shoulder, not
+  // in a screenshot of a shared session, not in history for the next person on
+  // the machine. It does not un-send the link, and nothing here pretends to.
+  const [credential] = useState(() => {
+    const found = credentialFromHash(window.location.hash);
+    stripCredentialFromUrl(window.location, window.history);
+    return found;
+  });
+
+  const defaults = joinDefaultsFromUrl(window.location.href);
   return details === null ? (
-    <JoinForm defaults={joinDefaultsFromUrl(window.location.href)} onJoin={setDetails} />
+    <JoinForm
+      defaults={
+        credential?.sessionId === undefined
+          ? defaults
+          : { ...defaults, sessionId: credential.sessionId }
+      }
+      token={credential?.token}
+      onJoin={setDetails}
+    />
   ) : (
     <Session details={details} onLeave={() => setDetails(null)} />
   );
@@ -22,15 +49,19 @@ export function App(): ReactElement {
 
 function JoinForm({
   defaults,
+  token: linkToken,
   onJoin,
 }: {
   defaults: JoinDefaults;
+  token?: string | undefined;
   onJoin(details: JoinDetails): void;
 }): ReactElement {
   const [baseUrl, setBaseUrl] = useState(defaults.baseUrl);
   const [sessionId, setSessionId] = useState(defaults.sessionId);
   const [participantId, setParticipantId] = useState("");
   const [role, setRole] = useState<Role>(defaults.role);
+  // A pasted token is the fallback for anyone who was sent one out of band.
+  const [token, setToken] = useState(linkToken ?? "");
 
   return (
     <main className="join">
@@ -40,7 +71,13 @@ function JoinForm({
         onSubmit={(e) => {
           e.preventDefault();
           if (participantId.trim() === "") return;
-          onJoin({ baseUrl, sessionId, participantId: participantId.trim(), role });
+          onJoin({
+            baseUrl,
+            sessionId,
+            participantId: participantId.trim(),
+            role,
+            ...(token.trim() === "" ? {} : { token: token.trim() }),
+          });
         }}
       >
         <label>
@@ -58,6 +95,16 @@ function JoinForm({
             onChange={(e) => setParticipantId(e.target.value)}
             placeholder="ada"
             autoFocus
+          />
+        </label>
+        <label>
+          Session token <span className="hint">optional; verified deployments require one</span>
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="paste if you were sent one"
+            autoComplete="off"
+            spellCheck={false}
           />
         </label>
         <label>
@@ -80,13 +127,23 @@ function Session({ details, onLeave }: { details: JoinDetails; onLeave(): void }
   const [notice, setNotice] = useState<string | null>(null);
   const clientRef = useRef<SessionClient | null>(null);
 
+  // Issue #56: the server is prefillable from a link, so a crafted one could
+  // point this app at another host. It may select a server; it may not make us
+  // hand a credential to it.
+  const present =
+    details.token !== undefined && mayPresentTokenTo(details.baseUrl, window.location.origin);
+
   useEffect(() => {
+    if (details.token !== undefined && !present) {
+      setNotice(WITHHELD_REASON);
+    }
     const client = new SessionClient({
       baseUrl: details.baseUrl,
       sessionId: details.sessionId,
       participantId: details.participantId,
       displayName: details.participantId,
       role: details.role,
+      ...(present ? { token: details.token } : {}),
       onEvent: (event) => setEvents((prev) => [...prev, event]),
       onStatus: setStatus,
       onRejection: (_messageId, reason) => setNotice(reason),

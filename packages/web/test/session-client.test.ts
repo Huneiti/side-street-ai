@@ -104,6 +104,53 @@ function harness(): Harness {
 
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
+describe("presenting a session token", () => {
+  it("offers the token on the socket subprotocol and as a bearer header", async () => {
+    const sockets: FakeSocket[] = [];
+    const protocolsSeen: string[][] = [];
+    const headersSeen: Array<Record<string, string> | undefined> = [];
+    let pending: ((value: unknown) => void) | undefined;
+
+    const client = new SessionClient({
+      baseUrl: "http://worker.test",
+      sessionId: "s1",
+      participantId: "alice",
+      displayName: "Alice",
+      role: "driver",
+      token: "abc.def.ghi",
+      onEvent: () => {},
+      createSocket: (_url, protocols) => {
+        protocolsSeen.push(protocols);
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      fetchFn: (_url, init) => {
+        headersSeen.push(init?.headers);
+        return new Promise((resolve) => {
+          pending = (value) => resolve({ ok: true, json: () => Promise.resolve(value) });
+        });
+      },
+    });
+    client.connect();
+
+    expect(protocolsSeen).toEqual([["side-street.token.abc.def.ghi"]]);
+
+    sockets[0]!.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 0 });
+    pending?.({ events: [] });
+    await flush();
+    // Replay carries it too, so the server serves this viewer at their own
+    // role rather than the Observer floor.
+    expect(headersSeen[0]).toEqual({ Authorization: "Bearer abc.def.ghi" });
+  });
+
+  it("offers no subprotocol and no header without one", () => {
+    const h = harness();
+    h.socket.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 0 });
+    expect(h.fetches).toHaveLength(1);
+  });
+});
+
 describe("SessionClient", () => {
   it("replays the tail on welcome, then goes live", async () => {
     const h = harness();

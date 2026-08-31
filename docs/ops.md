@@ -88,6 +88,25 @@ with a token in it. **Role is granted here**, not chosen by the person connectin
 whole point of the mechanism, and a viewer token without `--role` is refused at mint time
 rather than failing later at a socket.
 
+Hand a viewer their token in the URL **fragment**:
+
+```
+https://side-street.example/#token=<jwt>&session=incident-4417
+```
+
+A fragment is never sent to a server, never lands in an access log, and never appears in a
+`Referer` — the same reason this document refuses to put credentials in URLs server-side. The
+app reads it once, holds it in memory for the life of the tab, and removes it from the address
+bar immediately, so it is not over a shoulder, in a screenshot, or in history for the next
+person on the machine. It does not un-send the link; the short lifetime is what limits that.
+Anyone sent a token out of band can paste it into the join form instead.
+
+**Set `VITE_SIDE_STREET_SERVER` at build time** if the API is on a different origin from the
+web app. A token is only ever sent to the page's own origin or to that one. The join form's
+server is prefillable from a link, so without this a crafted link could point the app at
+another host and the credential would follow it; a link may still select a server, but it
+cannot make the app hand a token to it.
+
 The bridge presents its token from `SIDE_STREET_SESSION_TOKEN` in the sandbox's boot
 environment, alongside the other session-scoped credentials, so it inherits the same lifetime
 and the same declaration to the redaction pass.

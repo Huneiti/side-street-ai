@@ -17,6 +17,7 @@
 import {
   serverFrameSchema,
   toMarkdown,
+  tokenSubprotocols,
   type PermissionOutcome,
   type Role,
   type ServerFrame,
@@ -59,6 +60,12 @@ export interface SessionClientOptions {
   participantId: string;
   displayName: string;
   role: Role;
+  /**
+   * Session token (ADR-0005). Presented on the socket subprotocol and as a
+   * bearer header, so replay is served at this viewer's role rather than the
+   * Observer floor. Absent against an unauthenticated deployment.
+   */
+  token?: string | undefined;
   onEvent(event: SignedEvent): void;
   onStatus?(status: SessionStatus): void;
   onRejection?(messageId: string, reason: string): void;
@@ -66,8 +73,11 @@ export interface SessionClientOptions {
   onHandoffRejected?(reason: string): void;
   onError?(error: Error): void;
   /** Injectable for tests; defaults to the browser WebSocket. */
-  createSocket?(url: string): WebSocketLike;
-  fetchFn?(url: string): Promise<{ ok: boolean; json(): Promise<unknown> }>;
+  createSocket?(url: string, protocols: string[]): WebSocketLike;
+  fetchFn?(
+    url: string,
+    init?: { headers: Record<string, string> },
+  ): Promise<{ ok: boolean; json(): Promise<unknown> }>;
 }
 
 export class SessionClient {
@@ -99,9 +109,10 @@ export class SessionClient {
     const params = new URLSearchParams({ participantId, displayName, role });
     const url = `${wsBase}/session/${sessionId}/ws?${params.toString()}`;
     const createSocket =
-      this.options.createSocket ?? ((u: string) => new WebSocket(u) as WebSocketLike);
+      this.options.createSocket ??
+      ((u: string, protocols: string[]) => new WebSocket(u, protocols) as WebSocketLike);
     this.setStatus("connecting");
-    const socket = createSocket(url);
+    const socket = createSocket(url, tokenSubprotocols(this.options.token));
     this.socket = socket;
     socket.addEventListener("message", (event: { data: unknown }) => {
       this.handleRaw(String(event.data));
@@ -164,9 +175,10 @@ export class SessionClient {
    * safe to paste into a document read by people who were never in the session.
    */
   async transcript(): Promise<string> {
-    const fetchFn = this.options.fetchFn ?? ((url: string) => fetch(url));
+    const fetchFn = this.options.fetchFn ?? this.defaultFetch;
     const response = await fetchFn(
       `${this.options.baseUrl}/session/${this.options.sessionId}/events?from=0`,
+      this.authHeaders(),
     );
     if (!response.ok) {
       throw new Error("transcript request failed");
@@ -177,14 +189,28 @@ export class SessionClient {
 
   /** Ask the server to verify the stored chain; redacted viewer events cannot be re-hashed locally. */
   async verify(): Promise<VerifyResult> {
-    const fetchFn = this.options.fetchFn ?? ((url: string) => fetch(url));
+    const fetchFn = this.options.fetchFn ?? this.defaultFetch;
     const response = await fetchFn(
       `${this.options.baseUrl}/session/${this.options.sessionId}/verify`,
+      this.authHeaders(),
     );
     if (!response.ok) {
       throw new Error("verification request failed");
     }
     return verifyResultSchema.parse(await response.json());
+  }
+
+  private readonly defaultFetch = (
+    url: string,
+    init?: { headers: Record<string, string> },
+  ): Promise<Response> => fetch(url, init);
+
+  /** Bearer header when a token is held, so replay is served at our own role. */
+  private authHeaders(): { headers: Record<string, string> } | undefined {
+    const token = this.options.token;
+    return token === undefined || token === ""
+      ? undefined
+      : { headers: { Authorization: `Bearer ${token}` } };
   }
 
   private send(frame: unknown): void {
@@ -237,13 +263,13 @@ export class SessionClient {
     this.replaying = true;
     this.setStatus("replaying");
     try {
-      const fetchFn = this.options.fetchFn ?? ((url: string) => fetch(url));
+      const fetchFn = this.options.fetchFn ?? this.defaultFetch;
       // No cursor means no history: take the compacted replay (newest
       // checkpoint + tail) rather than every event ever. A reconnect has a
       // cursor and takes the exact delta.
       const from = this.cursor < 0 ? "checkpoint" : String(this.cursor + 1);
       const url = `${this.options.baseUrl}/session/${this.options.sessionId}/events?from=${from}`;
-      const response = await fetchFn(url);
+      const response = await fetchFn(url, this.authHeaders());
       if (!response.ok) {
         throw new Error("replay request failed");
       }
