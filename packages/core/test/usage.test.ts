@@ -181,9 +181,19 @@ describe("what the session did", () => {
   it("reports the agent that attached, not the one the session expected", async () => {
     const events = await log([
       started,
-      { authorId: "agent", body: { type: "agent_attached", payload: { agent: "codex" } } },
+      {
+        authorId: "agent",
+        body: {
+          type: "agent_attached",
+          payload: { agent: "codex", sandboxProvider: "local" },
+        },
+      },
     ]);
-    expect(summarizeUsage(events)).toMatchObject({ sessionId: "incident-42", agent: "codex" });
+    expect(summarizeUsage(events)).toMatchObject({
+      sessionId: "incident-42",
+      agent: "codex",
+      sandboxProvider: "local",
+    });
   });
 
   it("credits participants a compacted replay only knows from the checkpoint", async () => {
