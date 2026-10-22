@@ -185,6 +185,70 @@ describe("attribution", () => {
 });
 
 describe("agent output", () => {
+  it.each([undefined, "replacement", ""])(
+    "keeps previous tool output unless the final update replaces it with %s",
+    async (finalOutput) => {
+      const events = await log([
+        {
+          authorId: "agent",
+          body: {
+            type: "tool_call",
+            payload: { toolCallId: "t1", title: "pnpm test", status: "pending" },
+          },
+        },
+        {
+          authorId: "agent",
+          body: {
+            type: "tool_call_update",
+            payload: { toolCallId: "t1", status: "in_progress", output: "first output" },
+          },
+        },
+        {
+          authorId: "agent",
+          body: {
+            type: "tool_call_update",
+            payload: {
+              toolCallId: "t1",
+              status: "completed",
+              ...(finalOutput === undefined ? {} : { output: finalOutput }),
+            },
+          },
+        },
+      ]);
+
+      const md = toMarkdown(events);
+      expect(md).toContain(`\`\`\`\n${finalOutput ?? "first output"}\n\`\`\``);
+      expect(md).toContain("🔧 `pnpm test` — **completed**");
+      expect(md.match(/🔧/g)).toHaveLength(1);
+      if (finalOutput !== undefined) {
+        expect(md).not.toContain("first output");
+      }
+    },
+  );
+
+  it("preserves output and one tool entry when the opening event is outside the export", async () => {
+    const events = await log([
+      {
+        authorId: "agent",
+        body: {
+          type: "tool_call_update",
+          payload: { toolCallId: "t1", status: "in_progress", output: "partial result" },
+        },
+      },
+      {
+        authorId: "agent",
+        body: {
+          type: "tool_call_update",
+          payload: { toolCallId: "t1", status: "completed" },
+        },
+      },
+    ]);
+    const md = toMarkdown(events);
+    expect(md.match(/🔧/g)).toHaveLength(1);
+    expect(md).toContain("🔧 `t1` — **completed**");
+    expect(md).toContain("```\npartial result\n```");
+  });
+
   it("merges streamed chunks into one quoted block", async () => {
     const events = await log([
       { authorId: "agent", body: { type: "agent_message_chunk", payload: { text: "Checking " } } },

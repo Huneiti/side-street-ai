@@ -60,7 +60,10 @@ export function toMarkdown(
   const roster = new Map<string, { displayName: string; role: Role }>();
   const entries: string[] = [];
   /** Index in `entries` of each tool call, so its updates rewrite it in place. */
-  const toolEntries = new Map<string, { index: number; title: string }>();
+  const toolEntries = new Map<
+    string,
+    { index: number; title: string; output: string | undefined }
+  >();
   let started: { sessionId: string; agent: string; sandboxProvider: string } | undefined;
   /** What actually attached, if anything did — see `agent_attached`. */
   let attached: { agent: string; version?: string | undefined } | undefined;
@@ -165,6 +168,7 @@ export function toMarkdown(
         toolEntries.set(body.payload.toolCallId, {
           index: entries.length,
           title: body.payload.title,
+          output: undefined,
         });
         entries.push(toolLine(at, body.payload.title, body.payload.status));
         break;
@@ -172,16 +176,20 @@ export function toMarkdown(
         // Collapsed to one entry per tool, carrying its final status and its
         // output, at the time it started. A postmortem reader wants the tool
         // that ran, not the three events it took to say so.
-        const output =
-          body.payload.output === undefined
-            ? ""
-            : `\n\n${fence(truncate(body.payload.output, maxOutputChars))}`;
         const open = toolEntries.get(body.payload.toolCallId);
+        const text = body.payload.output ?? open?.output;
+        const output = text === undefined ? "" : `\n\n${fence(truncate(text, maxOutputChars))}`;
         if (open === undefined) {
           // No opening event: a transcript that starts after the tool began.
+          toolEntries.set(body.payload.toolCallId, {
+            index: entries.length,
+            title: body.payload.toolCallId,
+            output: text,
+          });
           entries.push(toolLine(at, body.payload.toolCallId, body.payload.status, output));
           break;
         }
+        open.output = text;
         entries[open.index] = toolLine(
           entryClock(entries[open.index]) ?? at,
           open.title,
