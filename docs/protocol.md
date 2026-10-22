@@ -132,6 +132,10 @@ sockets is open, so closing one device logs no departure; `participant_left` is 
 the last one closes. A drop that outlives the retries is therefore a real departure — the
 wheel is freed and reconnecting is a fresh join.
 
+Replay belongs to the socket that started it. When that socket closes, the client discards
+its buffered live events and ignores any later replay response or socket frames. A new
+connection replays from the last delivered cursor before draining its own live buffer.
+
 ## Transport (Durable Object wire protocol)
 
 Each session lives at `/session/:id` on the Worker; the id maps to one Durable Object.

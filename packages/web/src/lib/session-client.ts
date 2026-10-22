@@ -115,11 +115,14 @@ export class SessionClient {
     const socket = createSocket(url, tokenSubprotocols(this.options.token));
     this.socket = socket;
     socket.addEventListener("message", (event: { data: unknown }) => {
-      this.handleRaw(String(event.data));
+      if (this.socket === socket) {
+        this.handleRaw(String(event.data));
+      }
     });
     socket.addEventListener("close", () => {
       if (this.socket === socket) {
         this.socket = undefined;
+        this.resetReplay();
         this.setStatus("closed");
         this.scheduleRetry();
       }
@@ -145,6 +148,7 @@ export class SessionClient {
     this.clearRetry();
     const socket = this.socket;
     this.socket = undefined;
+    this.resetReplay();
     socket?.close();
     this.setStatus("closed");
   }
@@ -256,6 +260,10 @@ export class SessionClient {
   }
 
   private async replay(serverLastSeq: number): Promise<void> {
+    const socket = this.socket;
+    if (socket === undefined) {
+      return;
+    }
     if (serverLastSeq <= this.cursor) {
       this.setStatus("live");
       return;
@@ -275,19 +283,37 @@ export class SessionClient {
       }
       const parsed = replaySchema.parse(await response.json());
       for (const event of parsed.events as SignedEvent[]) {
+        if (this.socket !== socket) {
+          return;
+        }
         this.deliver(event);
       }
     } catch (error) {
-      this.options.onError?.(error instanceof Error ? error : new Error(String(error)));
-    } finally {
-      this.replaying = false;
-      const buffered = this.buffered;
-      this.buffered = [];
-      for (const event of buffered) {
-        this.deliver(event);
+      if (this.socket === socket) {
+        this.options.onError?.(error instanceof Error ? error : new Error(String(error)));
       }
-      this.setStatus("live");
+    } finally {
+      // A previous connection's fetch can finish after the next replay starts.
+      // Only the socket that owns this replay may drain its buffer or go live.
+      if (this.socket === socket) {
+        const buffered = this.buffered;
+        this.resetReplay();
+        for (const event of buffered) {
+          if (this.socket !== socket) {
+            break;
+          }
+          this.deliver(event);
+        }
+        if (this.socket === socket) {
+          this.setStatus("live");
+        }
+      }
     }
+  }
+
+  private resetReplay(): void {
+    this.replaying = false;
+    this.buffered = [];
   }
 
   private deliver(event: SignedEvent): void {

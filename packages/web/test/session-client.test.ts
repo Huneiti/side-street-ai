@@ -51,7 +51,7 @@ interface Harness {
   handoffRejections: string[];
   fetches: string[];
   resolveFetch(value: unknown): void;
-  resolveReplay(events: SignedEvent[]): void;
+  resolveReplay(events: SignedEvent[], requestIndex?: number): void;
 }
 
 function harness(): Harness {
@@ -62,6 +62,7 @@ function harness(): Harness {
   const handoffRejections: string[] = [];
   const fetches: string[] = [];
   let pendingFetch: ((value: unknown) => void) | undefined;
+  const pendingFetches: Array<(value: unknown) => void> = [];
 
   const client = new SessionClient({
     baseUrl: "http://worker.test",
@@ -82,6 +83,7 @@ function harness(): Harness {
       fetches.push(url);
       return new Promise((resolve) => {
         pendingFetch = (value) => resolve({ ok: true, json: () => Promise.resolve(value) });
+        pendingFetches.push(pendingFetch);
       });
     },
   });
@@ -98,7 +100,8 @@ function harness(): Harness {
     handoffRejections,
     fetches,
     resolveFetch: (value) => pendingFetch?.(value),
-    resolveReplay: (events) => pendingFetch?.({ events }),
+    resolveReplay: (events, requestIndex) =>
+      (requestIndex === undefined ? pendingFetch : pendingFetches[requestIndex])?.({ events }),
   };
 }
 
@@ -277,6 +280,55 @@ describe("SessionClient reconnect", () => {
   const tick = async (ms: number): Promise<void> => {
     await vi.advanceTimersByTimeAsync(ms);
   };
+
+  it("discards an in-flight replay and buffered events when the viewer leaves", async () => {
+    const h = harness();
+    const log = await makeLog(2);
+    h.socket.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 1 });
+    h.socket.receive({ type: "event", event: log[1] });
+    h.client.close();
+    h.resolveReplay(log);
+    await tick(0);
+
+    expect(h.received).toEqual([]);
+    expect(h.client.lastSeq).toBe(-1);
+    expect(h.statuses.at(-1)).toBe("closed");
+  });
+
+  it("keeps an old replay from flushing a new connection's live buffer", async () => {
+    const h = harness();
+    const log = await makeLog(3);
+    const oldSocket = h.socket;
+    oldSocket.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 0 });
+    oldSocket.close();
+    await tick(250);
+    h.socket.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 1 });
+    h.socket.receive({ type: "event", event: log[2] });
+
+    h.resolveReplay(log.slice(0, 1), 0);
+    await tick(0);
+    expect(h.received).toEqual([]);
+    expect(h.statuses.at(-1)).toBe("replaying");
+
+    h.resolveReplay(log.slice(0, 2), 1);
+    await tick(0);
+    expect(h.received.map((event) => event.seq)).toEqual([0, 1, 2]);
+    expect(h.statuses.at(-1)).toBe("live");
+  });
+
+  it("ignores late frames from a replaced socket", async () => {
+    const h = harness();
+    const log = await makeLog(1);
+    const oldSocket = h.socket;
+    oldSocket.close();
+    await tick(250);
+    oldSocket.receive({ type: "event", event: log[0] });
+    oldSocket.receive({ type: "welcome", participantId: "alice", role: "driver", lastSeq: 0 });
+
+    expect(h.received).toEqual([]);
+    expect(h.fetches).toEqual([]);
+    expect(h.statuses.at(-1)).toBe("connecting");
+  });
 
   /** Connect and replay a log of `count` events, leaving the client live. */
   async function live(h: Harness, count: number): Promise<SignedEvent[]> {
